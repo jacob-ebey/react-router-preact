@@ -1,0 +1,19 @@
+{
+	"private": true,
+	"scripts": {
+		"build": "pnpm run -r build"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4"
+	},
+	"pnpm": {
+		"patchedDependencies": {
+			"@mjackson/node-fetch-server": "patches/@mjackson__node-fetch-server.patch"
+		},
+		"overrides": {
+			"react": "npm:@preact/compat",
+			"react-dom": "npm:@preact/compat",
+			"vite": "^6.1.0"
+		}
+	}
+}

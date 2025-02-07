@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"moduleResolution": "nodenext",
+		"module": "NodeNext",
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
+		"rewriteRelativeImportExtensions": true,
+		"strict": true,
+		"emitDeclarationOnly": true,
+		"declarationMap": true
+	}
+}

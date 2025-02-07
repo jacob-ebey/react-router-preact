@@ -1,0 +1,85 @@
+{
+	"name": "react-router-preact",
+	"version": "7.1.5",
+	"type": "module",
+	"description": "",
+	"main": "dist/react-router-preact.js",
+	"types": "dist/react-router-preact.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/react-router-preact.d.ts",
+			"default": "./dist/react-router-preact.js"
+		},
+		"./browser": {
+			"types": "./dist/browser.d.ts",
+			"default": "./dist/browser.js"
+		},
+		"./client": {
+			"types": "./dist/client.d.ts",
+			"default": "./dist/client.js"
+		},
+		"./dom": {
+			"types": "./dist/dom.d.ts",
+			"default": "./dist/dom.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"default": "./dist/server.js"
+		},
+		"./ssr": {
+			"types": "./dist/ssr.d.ts",
+			"default": "./dist/ssr.js"
+		},
+		"./vite.browser": {
+			"types": "./dist/vite.browser.d.ts",
+			"default": "./dist/vite.browser.js"
+		},
+		"./vite.server": {
+			"types": "./dist/vite.server.d.ts",
+			"default": "./dist/vite.server.js"
+		},
+		"./vite.ssr": {
+			"types": "./dist/vite.ssr.d.ts",
+			"default": "./dist/vite.ssr.js"
+		},
+		"./browser-entry.ts": "./bundled/browser-entry.ts",
+		"./server-entry.ts": "./bundled/server-entry.ts",
+		"./ssr-entry.ts": "./bundled/ssr-entry.ts",
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"build": "tsup",
+		"node": "node --experimental-strip-types --disable-warning=ExperimentalWarning",
+		"test": "pnpm node --test src/*.spec.*"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"preact-server-components": "0.0.6"
+	},
+	"peerDependencies": {
+		"preact": "^10.25.4",
+		"preact-render-to-string": "^6.5.13",
+		"react": "*",
+		"react-dom": "*",
+		"vite": "^6.1.0"
+	},
+	"peerDependenciesMeta": {
+		"vite": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@types/node": "^22.13.1",
+		"expect": "^29.7.0",
+		"preact": "^10.25.4",
+		"preact-render-to-string": "^6.5.13",
+		"react": "npm:@preact/compat",
+		"react-dom": "npm:@preact/compat",
+		"react-router": "^7.1.5",
+		"tsup": "^8.3.6",
+		"typescript": "^5.7.3",
+		"vite": "^6.1.0"
+	}
+}

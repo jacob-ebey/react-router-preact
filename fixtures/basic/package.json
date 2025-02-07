@@ -1,0 +1,29 @@
+{
+	"private": true,
+	"name": "fixture-basic",
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"dev": "vite",
+		"typecheck": "react-router typegen && tsc --noEmit"
+	},
+	"dependencies": {
+		"cookie": "^1.0.2",
+		"preact": "^10.25.4",
+		"preact-render-to-string": "^6.5.13",
+		"react": "npm:@preact/compat",
+		"react-dom": "npm:@preact/compat",
+		"react-router": "^7.1.5",
+		"react-router-preact": "workspace:*"
+	},
+	"devDependencies": {
+		"@react-router/dev": "^7.1.5",
+		"@types/node": "^22.13.1",
+		"@types/react": "^19.0.8",
+		"@types/react-dom": "^19.0.3",
+		"typescript": "^5.7.3",
+		"vite": "^6.1.0",
+		"vite-plugin-inspect": "^10.1.1",
+		"vite-react-router-preact": "workspace:*"
+	}
+}
