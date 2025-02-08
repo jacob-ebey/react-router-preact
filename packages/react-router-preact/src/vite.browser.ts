@@ -40,7 +40,8 @@ export const decodeClientReference: DecodeClientReferenceFunction<
 		loadClientReference(encoded).then((Component: any) => ({
 			default: Component,
 		})),
-	) as ComponentType;
+	) as ComponentType & { raw: () => Promise<unknown> };
+	Comp.raw = () => loadClientReference(encoded);
 	cache.set(key, Comp);
 	return Comp;
 };

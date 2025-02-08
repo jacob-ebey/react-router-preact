@@ -302,6 +302,20 @@ export async function runServerRouter(
 						pathname: match.pathname,
 						...(mod
 							? {
+									action:
+										("action" in mod && mod.action) ||
+										("clientAction" in mod && mod.clientAction)
+											? true
+											: undefined,
+									loader:
+										("loader" in mod && mod.loader) ||
+										("clientLoader" in mod && mod.clientLoader)
+											? true
+											: undefined,
+									clientAction:
+										mod.clientAction && h(mod.clientAction as any, null),
+									clientLoader:
+										mod.clientLoader && h(mod.clientLoader as any, null),
 									hasErrorBoundary: mod.ErrorBoundary != null,
 									HydrateFallback: mod.HydrateFallback,
 									element: mod.Layout

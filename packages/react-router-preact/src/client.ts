@@ -16,6 +16,7 @@ import {
 	useLoaderData,
 	useParams,
 	useRouteError,
+	type ClientLoaderFunction,
 	type DataRouteObject,
 	type To,
 	type UNSAFE_AssetsManifest,
@@ -35,7 +36,9 @@ export function WrappedError({ element }: { element: VNode<any> }) {
 }
 
 const cachedRoutes = new Map<string, Map<string, VNode<any>>>();
-function cacheRoutes(rendered: DataRouteObject[]) {
+const routeManifestCache: Map<string, unknown> = {};
+function cacheRoutes(rendered: DataRouteObject[], routesManifest: unknown) {
+	Object.assign(routeManifestCache, routesManifest);
 	for (const route of rendered) {
 		const cache = cachedRoutes.get(route.id) ?? new Map();
 		cachedRoutes.set(route.id, cache);
@@ -44,9 +47,34 @@ function cacheRoutes(rendered: DataRouteObject[]) {
 			route.element,
 		);
 		if (route.children) {
-			cacheRoutes(route.children);
+			cacheRoutes(route.children, routesManifest);
 		}
 	}
+}
+
+function createHydratedRoutes(
+	rendered: DataRouteObject[],
+	routesManifest: unknown,
+): DataRouteObject[] {
+	cacheRoutes(rendered, routesManifest);
+	const hydrated: DataRouteObject[] = [];
+	for (const route of rendered) {
+		const hydratedRoute: DataRouteObject = {
+			...route,
+			element: h(HydratedRoute, {
+				id: route.id,
+				pathname: (route as unknown as { pathname: string }).pathname,
+			}) as any,
+		};
+		hydrated.push(hydratedRoute);
+		if (route.children) {
+			hydratedRoute.children = createHydratedRoutes(
+				route.children,
+				routesManifest,
+			);
+		}
+	}
+	return hydrated;
 }
 
 function HydratedRoute() {
@@ -60,24 +88,6 @@ function HydratedRoute() {
 	return cachedRoutes.get(id)?.get(pathname) ?? null;
 }
 
-function createHydratedRoutes(rendered: DataRouteObject[]): DataRouteObject[] {
-	const hydrated: DataRouteObject[] = [];
-	for (const route of rendered) {
-		const hydratedRoute = {
-			...route,
-			element: h(HydratedRoute, {
-				id: route.id,
-				pathname: (route as unknown as { pathname: string }).pathname,
-			}),
-		} as any;
-		hydrated.push(hydratedRoute);
-		if (route.children) {
-			hydratedRoute.children = createHydratedRoutes(route.children);
-		}
-	}
-	return hydrated;
-}
-
 const cachedPatches = new Set();
 let browserRouter: ReturnType<typeof createBrowserRouter> | undefined;
 export function ClientRouter({
@@ -88,9 +98,8 @@ export function ClientRouter({
 	const router = useMemo(() => {
 		if (typeof document !== "undefined") {
 			if (!browserRouter) {
-				cacheRoutes(payload.rendered);
 				browserRouter = createBrowserRouter(
-					createHydratedRoutes(payload.rendered),
+					createHydratedRoutes(payload.rendered, payload.manifest.routes),
 					{
 						hydrationData: {
 							actionData: payload.actionData,
@@ -122,9 +131,11 @@ export function ClientRouter({
 								).payload;
 
 								if (payload.type === "render") {
-									cacheRoutes(payload.rendered);
 									const patchRecursive = (
-										routes = createHydratedRoutes(payload.rendered),
+										routes = createHydratedRoutes(
+											payload.rendered,
+											payload.manifest.routes,
+										),
 										id: string | null = null,
 									) => {
 										patch(id, routes);
@@ -138,12 +149,66 @@ export function ClientRouter({
 								}
 							});
 						},
-						// dataStrategy({ fetcherKey, matches, params, request, context }) {
-						// 	// TODO: Implement a data strategy to surface loader data through hooks.
-						//  // right now you can access it through the component props, but becomes
-						//  // out of sync with the client navigations. Also take into account shouldRevalidate,
-						//  // and client loaders / actions
-						// },
+						async dataStrategy({
+							fetcherKey,
+							matches,
+							params,
+							request,
+							context,
+						}) {
+							// TODO: TODO: add shouldRevalidate client reference and lazy() to load it
+							console.log("HERE!!!", { routeManifestCache, matches });
+
+							if (request.method !== "GET") {
+								throw new Error("Only GET requests are supported so far.");
+							}
+
+							if (fetcherKey) {
+								throw new Error("Fetchers not yet implemented.");
+							}
+
+							const matchesToLoad = matches.filter((m) => m.shouldLoad);
+							const results = await Promise.all(
+								matchesToLoad.map(async (match) => {
+									console.log(`Processing ${match.route.id}`);
+									const result = await match.resolve(async () => {
+										const routeCache = cachedRoutes.get(match.route.id);
+										const cachedRoute = routeCache?.get(match.pathname);
+										if (!cachedRoute) {
+											throw new Error("No server render for " + match.route.id);
+										}
+
+										const serverLoaderData = cachedRoute.props.loaderData;
+
+										let loaderData = serverLoaderData;
+
+										const clientLoaderRef = (match.route as any)
+											.clientLoader as any;
+										if (typeof clientLoaderRef?.type?.raw === "function") {
+											const clientLoader: ClientLoaderFunction =
+												await clientLoaderRef.type.raw();
+											loaderData = await clientLoader({
+												context,
+												params,
+												request,
+												serverLoader: async () => serverLoaderData,
+											});
+										}
+
+										return loaderData;
+									});
+									return result;
+								}),
+							);
+
+							return results.reduce(
+								(acc, result, i) =>
+									Object.assign(acc, {
+										[matchesToLoad[i].route.id]: result,
+									}),
+								{},
+							);
+						},
 					},
 				);
 			}
