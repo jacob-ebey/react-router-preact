@@ -32,7 +32,7 @@ export const decodeClientReference: DecodeClientReferenceFunction<
 	}
 
 	const key = `${encoded[0]}:${encoded[1]}`;
-	const cached = cache.get(key);
+	const cached = import.meta.env.PROD ? cache.get(key) : undefined;
 	if (cached) {
 		return cached;
 	}

@@ -1,14 +1,18 @@
 import type * as React from "react";
 import {
 	isRouteErrorResponse,
+	Link,
 	Links,
 	Meta,
 	Outlet,
 	Scripts,
 	ScrollRestoration,
+	useLocation,
 } from "react-router";
+import type { Route } from "./+types/root";
 
 export function Layout({ children }: { children: React.ReactNode }) {
+	const location = useLocation();
 	return (
 		<html lang="en">
 			<head>
@@ -17,11 +21,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<Meta />
 				<Links />
 			</head>
-			<>
+			<body data-location={location.pathname}>
 				{children}
 				<ScrollRestoration />
 				<Scripts />
-			</>
+			</body>
 		</html>
 	);
 }
@@ -31,10 +35,10 @@ export default function App() {
 		<>
 			<ul>
 				<li>
-					<a href="/">Home</a>
+					<Link to="/">Home</Link>
 				</li>
 				<li>
-					<a href="/products/1">Product 1</a>
+					<Link to="/products/1">Product 1</Link>
 				</li>
 			</ul>
 			<Outlet />
@@ -42,7 +46,7 @@ export default function App() {
 	);
 }
 
-export function ErrorBoundary({ error }: any) {
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 	let message = "Oops!";
 	let details = "An unexpected error occurred.";
 	let stack: string | undefined;

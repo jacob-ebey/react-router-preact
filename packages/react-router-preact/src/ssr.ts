@@ -1,4 +1,4 @@
-import { h, type ComponentType, type VNode } from "preact";
+import { Fragment, h } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
 import {
 	decode,
@@ -9,7 +9,6 @@ import {
 import type { ServerPayload } from "./server.ts";
 
 export type HandleRequestOptions = {
-	assets: string[];
 	decodeClientReference: DecodeClientReferenceFunction<any>;
 	decodeServerReference: DecodeServerReferenceFunction;
 	SERVER: { fetch(request: Request): Promise<Response> };
@@ -17,15 +16,32 @@ export type HandleRequestOptions = {
 
 export async function handleRequest(
 	request: Request,
-	Wrapper: ComponentType<{ children: VNode }>,
 	{
-		assets,
 		decodeClientReference,
 		decodeServerReference,
 		SERVER,
 	}: HandleRequestOptions,
 ): Promise<Response> {
-	const serverResponse = await SERVER.fetch(request);
+	const url = new URL(request.url);
+	const isDataRequest = url.pathname.endsWith(".data");
+	let serverRequest = request;
+	if (isDataRequest) {
+		const targetURL = new URL(request.url);
+		targetURL.pathname = targetURL.pathname.slice(0, -".data".length);
+		serverRequest = new Request(targetURL, {
+			body: request.body,
+			duplex: request.body ? "half" : undefined,
+			headers: request.headers,
+			method: request.method,
+			signal: request.signal,
+		} as RequestInit & { duplex?: "half" });
+	}
+	const serverResponse = await SERVER.fetch(serverRequest);
+
+	if (isDataRequest) {
+		return serverResponse;
+	}
+
 	if (!serverResponse.body) {
 		throw new Error("Server response has no body");
 	}
@@ -40,25 +56,13 @@ export async function handleRequest(
 		readToText(payloadStreamB),
 	]);
 
-	const body = await renderToStringAsync(
-		h(
-			Wrapper,
-			null,
-			payload.root,
-			...assets.map((asset: string) =>
-				h("script", { key: asset, type: "module", src: asset }),
-			),
-			h("script", {
-				dangerouslySetInnerHTML: {
-					__html: `window.__PREACT_STREAM__ = new ReadableStream({ start(c) { c.enqueue(${escapeHtml(JSON.stringify(inlinePayload))}); c.close(); } });`,
-				},
-			}),
-		),
-	);
+	const body = await renderToStringAsync(h(Fragment, null, payload.root));
+
+	let inlineScript = `<script>window.__PREACT_STREAM__ = new ReadableStream({ start(c) { c.enqueue(${escapeHtml(JSON.stringify(inlinePayload))}); c.close(); } });</script>`;
 
 	const headers = new Headers(serverResponse.headers);
 	headers.set("content-type", "text/html");
-	return new Response(body, {
+	return new Response(body + inlineScript, {
 		headers,
 		status: serverResponse.status,
 	});

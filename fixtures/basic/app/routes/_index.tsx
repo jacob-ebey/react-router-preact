@@ -4,7 +4,7 @@ import type { Route } from "./+types/_index";
 
 export function loader({ params }: Route.LoaderArgs) {
 	return {
-		planet: <Link to="/products/world">world</Link>,
+		planet: <Link to="/products/world?test=1">world</Link>,
 		date: new Date(),
 		fn: () => 1,
 	};

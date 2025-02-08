@@ -30,13 +30,13 @@
 		"babel-dead-code-elimination": "^1.0.8",
 		"cookie": "^1.0.2",
 		"execa": "^9.5.2",
-		"vite-preact-server-components": "0.0.6",
+		"vite-preact-server-components": "0.0.7",
 		"vite-tsconfig-paths": "^5.1.4"
 	},
 	"peerDependencies": {
 		"preact": "^10.25.4",
 		"preact-render-to-string": "^6.5.13",
-		"preact-server-components": "0.0.6",
+		"preact-server-components": "0.0.7",
 		"react": "*",
 		"react-dom": "*",
 		"react-router-preact": "*",

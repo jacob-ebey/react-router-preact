@@ -1,3 +1,4 @@
+import { useLoaderData } from "react-router";
 import type { Route } from "./+types/product";
 
 export function loader({ params }: Route.LoaderArgs) {

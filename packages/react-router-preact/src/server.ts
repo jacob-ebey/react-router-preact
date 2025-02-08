@@ -9,10 +9,14 @@ import {
 	createStaticHandler,
 	matchRoutes,
 	type DataRouteObject,
+	type UNSAFE_AssetsManifest,
 	type UNSAFE_RouteModules,
 } from "react-router";
 
 import { ClientRouter, Outlet, WrappedError } from "react-router-preact/client";
+
+// @ts-expect-error
+import { assets } from "virtual:preact-server-components/server";
 
 export type HandleRequestOptions = {
 	basename?: string;
@@ -141,6 +145,7 @@ export type RouterRenderPayload = {
 	actionData: Record<string, unknown> | null;
 	errors: Record<string, unknown> | null;
 	loaderData: Record<string, unknown>;
+	manifest: UNSAFE_AssetsManifest;
 	rendered: DataRouteObject[];
 	status: number;
 	url: URL;
@@ -187,6 +192,12 @@ export async function runServerRouter(
 				  }
 				| undefined
 		)?.import();
+		if (serverRoutes) {
+			for (const route of serverRoutes) {
+				(route as any).parentId = match.route.id;
+			}
+		}
+
 		serverRoutes = match
 			? [
 					{
@@ -198,6 +209,7 @@ export async function runServerRouter(
 						children: match.route.index ? undefined : serverRoutes,
 						...(mod
 							? {
+									// ...mod,
 									action: "action" in mod ? (mod?.action as any) : undefined,
 									hasErrorBoundary: mod?.ErrorBoundary != null,
 									HydrateFallback: mod?.HydrateFallback,
@@ -211,7 +223,23 @@ export async function runServerRouter(
 
 	const handler = createStaticHandler(serverRoutes, { basename, future });
 
-	const context = await handler.query(request, { requestContext });
+	// TODO: Should we should strip out the search params and other things that can't be prerendered?
+	const urlThatCanBePrerendered = new URL(url.href);
+	urlThatCanBePrerendered.search = "";
+	urlThatCanBePrerendered.hash = "";
+
+	const requestThatCanBePrerendered =
+		request.method !== "GET" && request.method !== "HEAD"
+			? new Request(urlThatCanBePrerendered, {
+					headers: request.headers,
+					method: request.method,
+					signal: request.signal,
+				} as RequestInit & { duplex?: "half" })
+			: request;
+
+	const context = await handler.query(requestThatCanBePrerendered, {
+		requestContext,
+	});
 
 	if (isResponse(context)) {
 		const location = context.headers.get("Location");
@@ -233,6 +261,7 @@ export async function runServerRouter(
 		handle: undefined,
 	}));
 
+	const routesManifest: UNSAFE_AssetsManifest["routes"] = {};
 	let rendered: DataRouteObject[] = [];
 	for (let i = (context.matches?.length ?? 0) - 1; i >= 0; i--) {
 		const match = context.matches?.[i];
@@ -243,6 +272,25 @@ export async function runServerRouter(
 				  }
 				| undefined
 		)?.import();
+
+		routesManifest[match.route.id] = {
+			hasAction: "action" in match.route && !!match.route.action,
+			hasClientAction:
+				"clientAction" in match.route && !!match.route.clientAction,
+			hasClientLoader:
+				"clientLoader" in match.route && !!match.route.clientLoader,
+			hasErrorBoundary: mod?.ErrorBoundary != null,
+			hasLoader: "loader" in match.route && !!match.route.loader,
+			id: match.route.id,
+			module: assets[0],
+			caseSensitive: match.route.caseSensitive,
+			css: undefined,
+			imports: assets,
+			index: match.route.index as false | undefined,
+			parentId: (match.route as any).parentId,
+			path: match.route.path,
+		};
+
 		rendered = match
 			? [
 					{
@@ -251,15 +299,25 @@ export async function runServerRouter(
 						index: match.route.index as false | undefined,
 						path: match.route.path,
 						children: match.route.index ? undefined : rendered,
+						pathname: match.pathname,
 						...(mod
 							? {
 									hasErrorBoundary: mod.ErrorBoundary != null,
 									HydrateFallback: mod.HydrateFallback,
-									element:
-										// h(
-										// 	Suspense,
-										// 	null,
-										mod.default
+									element: mod.Layout
+										? h(
+												mod.Layout as any,
+												null,
+												mod.default
+													? h(mod.default as any, {
+															params: match.params,
+															loaderData: context.loaderData[match.route.id],
+															actionData: context.actionData?.[match.route.id],
+															matches: renderedMatches,
+														})
+													: h(Outlet as any, null),
+											)
+										: mod.default
 											? h(mod.default as any, {
 													params: match.params,
 													loaderData: context.loaderData[match.route.id],
@@ -267,15 +325,19 @@ export async function runServerRouter(
 													matches: renderedMatches,
 												})
 											: h(Outlet as any, null),
-									// ),
-									// ErrorBoundary: mod.ErrorBoundary,
 									errorElement:
 										mod.ErrorBoundary &&
-										h(WrappedError, {
-											element: h(mod.ErrorBoundary as any, {
-												error: new Error("unknown"),
-											}),
-										}),
+										(mod.Layout
+											? h(
+													mod.Layout as any,
+													null,
+													h(WrappedError, {
+														element: h(mod.ErrorBoundary as any, {}),
+													}),
+												)
+											: h(WrappedError, {
+													element: h(mod.ErrorBoundary as any, {}),
+												})),
 								}
 							: {}),
 					} as DataRouteObject,
@@ -286,6 +348,15 @@ export async function runServerRouter(
 	return {
 		type: "render",
 		actionData: context.actionData,
+		manifest: {
+			entry: {
+				imports: assets,
+				module: assets[0],
+			},
+			url: "",
+			version: "",
+			routes: routesManifest,
+		},
 		errors: context.errors,
 		loaderData: context.loaderData,
 		rendered,

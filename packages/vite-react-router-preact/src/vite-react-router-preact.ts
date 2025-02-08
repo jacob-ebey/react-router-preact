@@ -50,7 +50,9 @@ export function reactRouterNodeServer(): vite.PluginOption {
 						),
 					),
 					ssrRunner.runner.import(
-						fileURLToPath(import.meta.resolve("react-router-preact/ssr-entry.ts")),
+						fileURLToPath(
+							import.meta.resolve("react-router-preact/ssr-entry.ts"),
+						),
 					),
 				]);
 
@@ -143,6 +145,7 @@ export default async function reactRouterPreact({
 
 	const routesConfig = [
 		{
+			id: "root",
 			file: path.relative(appDirectory, rootRoutePath),
 			// path: "",
 			children: await loadRoutesConfig(routesConfigPath),
@@ -520,7 +523,23 @@ async function loadRoutesConfig(
 	if (result.exitCode !== 0) {
 		throw new Error("Failed to load react-router.config.ts:\n" + result.stderr);
 	}
-	return JSON.parse(result.stdout);
+	const routes = JSON.parse(result.stdout);
+
+	// Go through each route recursively and add an id to each route
+	let i = 0;
+	const recurse = (entry: RouteConfigEntry) => {
+		if (entry.file && !entry.id) {
+			entry.id = entry.file.slice(0, -path.extname(entry.file).length);
+		}
+		if (entry.children) {
+			for (const child of entry.children) {
+				recurse(child);
+			}
+		}
+	};
+	recurse({ children: routes } as RouteConfigEntry);
+
+	return routes;
 }
 
 async function loadReactRouterConfig(): Promise<Config> {

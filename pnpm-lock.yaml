@@ -74,8 +74,8 @@ importers:
   packages/react-router-preact:
     dependencies:
       preact-server-components:
-        specifier: 0.0.6
-        version: 0.0.6(preact@10.25.4)(turbo-stream@3.1.0)
+        specifier: 0.0.7
+        version: 0.0.7(preact@10.25.4)(turbo-stream@3.1.0)
       react:
         specifier: npm:@preact/compat
         version: '@preact/compat@18.3.1(preact@10.25.4)'
@@ -144,8 +144,8 @@ importers:
         specifier: ^6.5.13
         version: 6.5.13(preact@10.25.4)
       preact-server-components:
-        specifier: 0.0.6
-        version: 0.0.6(preact@10.25.4)(turbo-stream@3.1.0)
+        specifier: 0.0.7
+        version: 0.0.7(preact@10.25.4)(turbo-stream@3.1.0)
       react:
         specifier: npm:@preact/compat
         version: '@preact/compat@18.3.1(preact@10.25.4)'
@@ -153,8 +153,8 @@ importers:
         specifier: npm:@preact/compat
         version: '@preact/compat@18.3.1(preact@10.25.4)'
       vite-preact-server-components:
-        specifier: 0.0.6
-        version: 0.0.6(preact-server-components@0.0.6(preact@10.25.4)(turbo-stream@3.1.0))(preact@10.25.4)(vite@6.1.0(@types/node@22.13.1))
+        specifier: 0.0.7
+        version: 0.0.7(preact-server-components@0.0.7(preact@10.25.4)(turbo-stream@3.1.0))(preact@10.25.4)(vite@6.1.0(@types/node@22.13.1))
       vite-tsconfig-paths:
         specifier: ^5.1.4
         version: 5.1.4(typescript@5.7.3)(vite@6.1.0(@types/node@22.13.1))
@@ -1400,8 +1400,8 @@ packages:
     peerDependencies:
       preact: '>=10'
 
-  preact-server-components@0.0.6:
-    resolution: {integrity: sha512-dY+nr8R8ABKo9YkuFnk+ABPUHjnVH66SmpIi+LNHgBrdXxIUdz1VSfvfhAWNjRbpaPVU6Pn7oGWH4JHneyjA2Q==}
+  preact-server-components@0.0.7:
+    resolution: {integrity: sha512-69Fr5xOAqK9Lj3MU1SqTrsLSXmfyWJlpFZvjtZjQRcUu3PoOqx3xbpnBd7esRrnJU/KI2yPeLwZfwrHTuthAOg==}
     peerDependencies:
       preact: ^10.25.4
       turbo-stream: ^3.1.0
@@ -1736,8 +1736,8 @@ packages:
       '@nuxt/kit':
         optional: true
 
-  vite-preact-server-components@0.0.6:
-    resolution: {integrity: sha512-f7UmADFshY53tSCXjzEr9Tbbw3rqMeRukZDXJU038rTPidSaVPnStihBBY6QXlE8XQ0QoopoAmnn12XPQIiDhQ==}
+  vite-preact-server-components@0.0.7:
+    resolution: {integrity: sha512-fpdl8EsmNu8BRauSd6hK1tR89OJgmZofbPFsTDrcEI4tViY7/3xHb2p/9ZKmgozZhJJSW84Z7EbG+DiSr3qyuQ==}
     peerDependencies:
       preact: ^10.25.4
       preact-server-components: '*'
@@ -3010,7 +3010,7 @@ snapshots:
     dependencies:
       preact: 10.25.4
 
-  preact-server-components@0.0.6(preact@10.25.4)(turbo-stream@3.1.0):
+  preact-server-components@0.0.7(preact@10.25.4)(turbo-stream@3.1.0):
     dependencies:
       preact: 10.25.4
       turbo-stream: 3.1.0
@@ -3347,11 +3347,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  vite-preact-server-components@0.0.6(preact-server-components@0.0.6(preact@10.25.4)(turbo-stream@3.1.0))(preact@10.25.4)(vite@6.1.0(@types/node@22.13.1)):
+  vite-preact-server-components@0.0.7(preact-server-components@0.0.7(preact@10.25.4)(turbo-stream@3.1.0))(preact@10.25.4)(vite@6.1.0(@types/node@22.13.1)):
     dependencies:
       es-module-lexer: 1.6.0
       preact: 10.25.4
-      preact-server-components: 0.0.6(preact@10.25.4)(turbo-stream@3.1.0)
+      preact-server-components: 0.0.7(preact@10.25.4)(turbo-stream@3.1.0)
       vite: 6.1.0(@types/node@22.13.1)
 
   vite-prerender-plugin@0.5.5:
