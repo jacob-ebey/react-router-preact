@@ -36,9 +36,7 @@ export function WrappedError({ element }: { element: VNode<any> }) {
 }
 
 const cachedRoutes = new Map<string, Map<string, VNode<any>>>();
-const routeManifestCache: Map<string, unknown> = {};
-function cacheRoutes(rendered: DataRouteObject[], routesManifest: unknown) {
-	Object.assign(routeManifestCache, routesManifest);
+function cacheRoutes(rendered: DataRouteObject[]) {
 	for (const route of rendered) {
 		const cache = cachedRoutes.get(route.id) ?? new Map();
 		cachedRoutes.set(route.id, cache);
@@ -47,16 +45,13 @@ function cacheRoutes(rendered: DataRouteObject[], routesManifest: unknown) {
 			route.element,
 		);
 		if (route.children) {
-			cacheRoutes(route.children, routesManifest);
+			cacheRoutes(route.children);
 		}
 	}
 }
 
-function createHydratedRoutes(
-	rendered: DataRouteObject[],
-	routesManifest: unknown,
-): DataRouteObject[] {
-	cacheRoutes(rendered, routesManifest);
+function createHydratedRoutes(rendered: DataRouteObject[]): DataRouteObject[] {
+	cacheRoutes(rendered);
 	const hydrated: DataRouteObject[] = [];
 	for (const route of rendered) {
 		const hydratedRoute: DataRouteObject = {
@@ -68,10 +63,7 @@ function createHydratedRoutes(
 		};
 		hydrated.push(hydratedRoute);
 		if (route.children) {
-			hydratedRoute.children = createHydratedRoutes(
-				route.children,
-				routesManifest,
-			);
+			hydratedRoute.children = createHydratedRoutes(route.children);
 		}
 	}
 	return hydrated;
@@ -99,7 +91,7 @@ export function ClientRouter({
 		if (typeof document !== "undefined") {
 			if (!browserRouter) {
 				browserRouter = createBrowserRouter(
-					createHydratedRoutes(payload.rendered, payload.manifest.routes),
+					createHydratedRoutes(payload.rendered),
 					{
 						hydrationData: {
 							actionData: payload.actionData,
@@ -132,10 +124,7 @@ export function ClientRouter({
 
 								if (payload.type === "render") {
 									const patchRecursive = (
-										routes = createHydratedRoutes(
-											payload.rendered,
-											payload.manifest.routes,
-										),
+										routes: DataRouteObject[],
 										id: string | null = null,
 									) => {
 										patch(id, routes);
@@ -145,7 +134,7 @@ export function ClientRouter({
 											}
 										}
 									};
-									patchRecursive();
+									patchRecursive(createHydratedRoutes(payload.rendered));
 								}
 							});
 						},
@@ -156,9 +145,6 @@ export function ClientRouter({
 							request,
 							context,
 						}) {
-							// TODO: TODO: add shouldRevalidate client reference and lazy() to load it
-							console.log("HERE!!!", { routeManifestCache, matches });
-
 							if (request.method !== "GET") {
 								throw new Error("Only GET requests are supported so far.");
 							}
@@ -170,7 +156,6 @@ export function ClientRouter({
 							const matchesToLoad = matches.filter((m) => m.shouldLoad);
 							const results = await Promise.all(
 								matchesToLoad.map(async (match) => {
-									console.log(`Processing ${match.route.id}`);
 									const result = await match.resolve(async () => {
 										const routeCache = cachedRoutes.get(match.route.id);
 										const cachedRoute = routeCache?.get(match.pathname);
