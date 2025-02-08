@@ -13,7 +13,12 @@ import {
 	type UNSAFE_RouteModules,
 } from "react-router";
 
-import { ClientRouter, Outlet, WrappedError } from "react-router-preact/client";
+import {
+	ClientRouter,
+	Outlet,
+	WrappedError,
+	WrappedRoute,
+} from "react-router-preact/client";
 
 // @ts-expect-error
 import { assets } from "virtual:preact-server-components/server";
@@ -316,6 +321,9 @@ export async function runServerRouter(
 										mod.clientAction && h(mod.clientAction as any, null),
 									clientLoader:
 										mod.clientLoader && h(mod.clientLoader as any, null),
+									clientShouldRevalidate:
+										mod.shouldRevalidate &&
+										h(mod.shouldRevalidate as any, null),
 									hasErrorBoundary: mod.ErrorBoundary != null,
 									HydrateFallback: mod.HydrateFallback,
 									element: mod.Layout
@@ -331,14 +339,14 @@ export async function runServerRouter(
 														})
 													: h(Outlet as any, null),
 											)
-										: mod.default
-											? h(mod.default as any, {
-													params: match.params,
-													loaderData: context.loaderData[match.route.id],
-													actionData: context.actionData?.[match.route.id],
-													matches: renderedMatches,
-												})
-											: h(Outlet as any, null),
+										: h(WrappedRoute, {
+												element: mod.default
+													? h(mod.default as any, {
+															loaderData: context.loaderData[match.route.id],
+															actionData: context.actionData?.[match.route.id],
+														})
+													: h(Outlet as any, null),
+											}),
 									errorElement:
 										mod.ErrorBoundary &&
 										(mod.Layout

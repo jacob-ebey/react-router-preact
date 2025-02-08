@@ -14,10 +14,12 @@ import {
 	UNSAFE_RouteContext,
 	useActionData,
 	useLoaderData,
+	useMatches,
 	useParams,
 	useRouteError,
 	type ClientLoaderFunction,
 	type DataRouteObject,
+	type ShouldRevalidateFunction,
 	type To,
 	type UNSAFE_AssetsManifest,
 	type UNSAFE_RouteModules,
@@ -32,6 +34,14 @@ export function WrappedError({ element }: { element: VNode<any> }) {
 	element.props.loaderData = useLoaderData();
 	element.props.params = useParams();
 	element.props.error = useRouteError();
+	return element;
+}
+
+export function WrappedRoute({ element }: { element: VNode<any> }) {
+	element.props.actionData = useActionData();
+	element.props.loaderData = useLoaderData();
+	element.props.params = useParams();
+	element.props.matches = useMatches();
 	return element;
 }
 
@@ -56,6 +66,20 @@ function createHydratedRoutes(rendered: DataRouteObject[]): DataRouteObject[] {
 	for (const route of rendered) {
 		const hydratedRoute: DataRouteObject = {
 			...route,
+			lazy: async () => {
+				let shouldRevalidate: ShouldRevalidateFunction | undefined;
+				let rawShouldRevalidate = (
+					(route as any).clientShouldRevalidate as unknown as {
+						type: { raw: () => Promise<ShouldRevalidateFunction> };
+					}
+				)?.type?.raw;
+				if (rawShouldRevalidate) {
+					shouldRevalidate = await rawShouldRevalidate();
+					hydratedRoute.shouldRevalidate = shouldRevalidate;
+				}
+				console.log({ rawShouldRevalidate, shouldRevalidate });
+				return hydratedRoute as any;
+			},
 			element: h(HydratedRoute, {
 				id: route.id,
 				pathname: (route as unknown as { pathname: string }).pathname,
@@ -89,113 +113,112 @@ export function ClientRouter({
 }) {
 	const router = useMemo(() => {
 		if (typeof document !== "undefined") {
+			const hydratedRoutes = createHydratedRoutes(payload.rendered);
 			if (!browserRouter) {
-				browserRouter = createBrowserRouter(
-					createHydratedRoutes(payload.rendered),
-					{
-						hydrationData: {
-							actionData: payload.actionData,
-							errors: payload.errors,
-							loaderData: payload.loaderData,
-						},
-						async patchRoutesOnNavigation({ matches, patch, path }) {
-							if (cachedPatches.has(path)) return;
-							cachedPatches.add(path);
-
-							// TODO: Take into account existing matches
-							const url = new URL(path, window.location.origin);
-							url.pathname += ".data";
-							await fetch(url).then(async (response) => {
-								if (!response.body) {
-									throw new Error("No body");
-								}
-								const serverPayload = await decode<ServerPayload>(
-									response.body.pipeThrough(new TextDecoderStream()),
-									{
-										decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
-										decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
-									},
-								);
-								const payload = (
-									serverPayload.root.props as unknown as {
-										payload: RouterRenderPayload;
-									}
-								).payload;
-
-								if (payload.type === "render") {
-									const patchRecursive = (
-										routes: DataRouteObject[],
-										id: string | null = null,
-									) => {
-										patch(id, routes);
-										for (const route of routes) {
-											if (route.children) {
-												patchRecursive(route.children, route.id);
-											}
-										}
-									};
-									patchRecursive(createHydratedRoutes(payload.rendered));
-								}
-							});
-						},
-						async dataStrategy({
-							fetcherKey,
-							matches,
-							params,
-							request,
-							context,
-						}) {
-							if (request.method !== "GET") {
-								throw new Error("Only GET requests are supported so far.");
-							}
-
-							if (fetcherKey) {
-								throw new Error("Fetchers not yet implemented.");
-							}
-
-							const matchesToLoad = matches.filter((m) => m.shouldLoad);
-							const results = await Promise.all(
-								matchesToLoad.map(async (match) => {
-									const result = await match.resolve(async () => {
-										const routeCache = cachedRoutes.get(match.route.id);
-										const cachedRoute = routeCache?.get(match.pathname);
-										if (!cachedRoute) {
-											throw new Error("No server render for " + match.route.id);
-										}
-
-										const serverLoaderData = cachedRoute.props.loaderData;
-
-										let loaderData = serverLoaderData;
-
-										const clientLoaderRef = (match.route as any)
-											.clientLoader as any;
-										if (typeof clientLoaderRef?.type?.raw === "function") {
-											const clientLoader: ClientLoaderFunction =
-												await clientLoaderRef.type.raw();
-											loaderData = await clientLoader({
-												context,
-												params,
-												request,
-												serverLoader: async () => serverLoaderData,
-											});
-										}
-
-										return loaderData;
-									});
-									return result;
-								}),
-							);
-
-							return results.reduce(
-								(acc, result, i) =>
-									Object.assign(acc, {
-										[matchesToLoad[i].route.id]: result,
-									}),
-								{},
-							);
-						},
+				browserRouter = createBrowserRouter(hydratedRoutes, {
+					hydrationData: {
+						actionData: payload.actionData,
+						errors: payload.errors,
+						loaderData: payload.loaderData,
 					},
-				);
+					async patchRoutesOnNavigation({ matches, patch, path }) {
+						if (cachedPatches.has(path)) return;
+						cachedPatches.add(path);
+
+						// TODO: Take into account existing matches that don't want to revalidate
+						const url = new URL(path, window.location.origin);
+						url.pathname += ".data";
+						await fetch(url).then(async (response) => {
+							if (!response.body) {
+								throw new Error("No body");
+							}
+							const serverPayload = await decode<ServerPayload>(
+								response.body.pipeThrough(new TextDecoderStream()),
+								{
+									decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
+									decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
+								},
+							);
+							const payload = (
+								serverPayload.root.props as unknown as {
+									payload: RouterRenderPayload;
+								}
+							).payload;
+
+							if (payload.type === "render") {
+								const patchRecursive = (
+									routes: DataRouteObject[],
+									id: string | null = null,
+								) => {
+									patch(id, routes);
+									for (const route of routes) {
+										if (route.children) {
+											patchRecursive(route.children, route.id);
+										}
+									}
+								};
+								patchRecursive(createHydratedRoutes(payload.rendered));
+							}
+						});
+					},
+					async dataStrategy({
+						fetcherKey,
+						matches,
+						params,
+						request,
+						context,
+					}) {
+						if (request.method !== "GET") {
+							throw new Error("Only GET requests are supported so far.");
+						}
+
+						if (fetcherKey) {
+							throw new Error("Fetchers not yet implemented.");
+						}
+
+						const matchesToLoad = matches.filter((m) => m.shouldLoad);
+						const results = await Promise.all(
+							matchesToLoad.map(async (match) => {
+								const result = await match.resolve(async () => {
+									const routeCache = cachedRoutes.get(match.route.id);
+									const cachedRoute = routeCache?.get(match.pathname);
+									if (!cachedRoute) {
+										throw new Error("No server render for " + match.route.id);
+									}
+
+									const serverLoaderData =
+										cachedRoute.props.element.props.loaderData;
+
+									let loaderData = serverLoaderData;
+
+									const clientLoaderRef = (match.route as any)
+										.clientLoader as any;
+									if (typeof clientLoaderRef?.type?.raw === "function") {
+										const clientLoader: ClientLoaderFunction =
+											await clientLoaderRef.type.raw();
+										loaderData = await clientLoader({
+											context,
+											params,
+											request,
+											serverLoader: async () => serverLoaderData,
+										});
+									}
+
+									return loaderData;
+								});
+								return result;
+							}),
+						);
+
+						return results.reduce(
+							(acc, result, i) =>
+								Object.assign(acc, {
+									[matchesToLoad[i].route.id]: result,
+								}),
+							{},
+						);
+					},
+				});
 			}
 			return browserRouter;
 		}
