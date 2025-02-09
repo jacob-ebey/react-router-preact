@@ -11,7 +11,7 @@ export function shouldRevalidate({
 
 export function loader({ params }: Route.LoaderArgs) {
 	return {
-		planet: <Link to="/products/world?test=1">world</Link>,
+		planet: <Link to="/products/world">world</Link>,
 		other: "test",
 		fn: () => 1,
 	};

@@ -11,6 +11,12 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 
+import { getMutations } from "~/api";
+
+export function loader() {
+	return { mutations: getMutations() };
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
 	const location = useLocation();
 	return (
@@ -30,9 +36,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 	);
 }
 
-export default function App() {
+export default function App({ loaderData }: Route.ComponentProps) {
 	return (
 		<>
+			Mutations {loaderData.mutations}
 			<ul>
 				<li>
 					<Link to="/">Home</Link>
@@ -76,6 +83,6 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 	);
 }
 
-export function HydrateFallback({ params }: Route.HydrateFallbackProps) {
-	return <h1>Loading...</h1>;
-}
+// export function HydrateFallback({ params }: Route.HydrateFallbackProps) {
+// 	return <h1>Loading...</h1>;
+// }

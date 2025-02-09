@@ -51,10 +51,17 @@ function cacheRoutes(rendered: DataRouteObject[]) {
 	for (const route of rendered) {
 		const cache = cachedRoutes.get(route.id) ?? new Map();
 		cachedRoutes.set(route.id, cache);
-		cache.set(
+		const existing = cache.get(
 			(route as unknown as { pathname: string }).pathname,
-			route.element,
 		);
+		if (existing) {
+			existing.props = (route.element as any)?.props ?? existing.props;
+		} else {
+			cache.set(
+				(route as unknown as { pathname: string }).pathname,
+				route.element,
+			);
+		}
 		if (route.children) {
 			cacheRoutes(route.children);
 		}
@@ -310,8 +317,9 @@ export function ClientRouter({
 										throw new Error("No server render for " + match.route.id);
 									}
 
-									const serverLoaderData =
-										cachedRoute.props.element.props.loaderData;
+									const serverLoaderData = (
+										cachedRoute.props.element ?? cachedRoute.props.children
+									).props.loaderData;
 
 									let loaderData = serverLoaderData;
 
@@ -334,13 +342,15 @@ export function ClientRouter({
 							}),
 						);
 
-						return results.reduce(
+						const r = results.reduce(
 							(acc, result, i) =>
 								Object.assign(acc, {
 									[matchesToLoad[i].route.id]: result,
 								}),
 							{},
 						);
+						console.log(r);
+						return r;
 					},
 				});
 			}

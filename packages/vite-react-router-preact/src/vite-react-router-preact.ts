@@ -147,7 +147,7 @@ export default async function reactRouterPreact({
 		{
 			id: "root",
 			file: path.relative(appDirectory, rootRoutePath),
-			// path: "",
+			path: "",
 			children: await loadRoutesConfig(routesConfigPath),
 		},
 	];
@@ -321,7 +321,7 @@ export default async function reactRouterPreact({
 					);
 				}
 			},
-			resolveId(id) {
+			async resolveId(id, importer) {
 				if (id === "virtual:react-router-preact/client-routes") {
 					return "\0virtual:react-router-preact/client-routes";
 				}
@@ -340,6 +340,31 @@ export default async function reactRouterPreact({
 
 				if (id.startsWith("\0")) {
 					return id;
+				}
+
+				if (
+					importer &&
+					importer[0] === "\0" &&
+					(isClientRouteModule(importer.slice(1)) ||
+						isServerRouteModule(importer.slice(1)))
+				) {
+					const isClientRoute = isClientRouteModule(importer.slice(1));
+					const importerPath = importer.slice(
+						(isClientRoute ? "client-route:".length : "server-route:".length) +
+							1,
+					);
+
+					const resolved = await this.resolve(id, importerPath);
+					if (resolved) {
+						return {
+							id: resolved.id,
+							external: resolved.external,
+							attributes: resolved.attributes,
+							meta: resolved.meta,
+							moduleSideEffects: resolved.moduleSideEffects,
+							syntheticNamedExports: resolved.syntheticNamedExports,
+						};
+					}
 				}
 			},
 			async load(id) {

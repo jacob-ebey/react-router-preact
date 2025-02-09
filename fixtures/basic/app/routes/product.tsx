@@ -1,10 +1,13 @@
 import { Form } from "react-router";
 import type { Route } from "./+types/product";
 
-let mutations = 0;
+import { getMutations, incrementMutations } from "~/api";
 
 export function loader({ params }: Route.LoaderArgs) {
-	return { name: `Super cool product #${params.id}`, mutations };
+	return {
+		name: `Super cool product #${params.id}`,
+		mutations: getMutations(),
+	};
 }
 
 export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
@@ -17,7 +20,7 @@ export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
 }
 
 export function action({ params }: Route.ActionArgs) {
-	mutations++;
+	incrementMutations();
 	return {
 		mutated: "YAY!",
 	};

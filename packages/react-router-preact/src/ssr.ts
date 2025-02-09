@@ -62,7 +62,7 @@ export async function handleRequest(
 
 	const headers = new Headers(serverResponse.headers);
 	headers.set("content-type", "text/html");
-	return new Response(body + inlineScript, {
+	return new Response("<!DOCTYPE html>" + body + inlineScript, {
 		headers,
 		status: serverResponse.status,
 	});
