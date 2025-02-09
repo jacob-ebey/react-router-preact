@@ -206,6 +206,21 @@ export default async function reactRouterPreact({
 							watchCommand = null;
 						});
 					}
+
+					if (server && serverEnvironments.has(this.environment.name)) {
+						for (const clientEnvironment of [
+							environments.client,
+							...environments.ssr,
+						]) {
+							server.environments[
+								clientEnvironment
+							].moduleGraph.invalidateAll();
+						}
+					} else if (server && this.environment.name === environments.client) {
+						for (const ssrEnvironment of environments.ssr) {
+							server.environments[ssrEnvironment].moduleGraph.invalidateAll();
+						}
+					}
 				}
 			},
 			config(config) {

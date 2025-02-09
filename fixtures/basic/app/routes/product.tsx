@@ -17,3 +17,7 @@ export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
 export default function Component({ loaderData }: Route.ComponentProps) {
 	return <h1>{useLoaderData().name}</h1>;
 }
+
+export function HydrateFallback({ params }: Route.HydrateFallbackProps) {
+	return <h1>Loading {params.id}...</h1>;
+}

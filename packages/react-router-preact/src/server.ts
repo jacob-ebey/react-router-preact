@@ -116,6 +116,7 @@ export async function handleRequest(
 		return new Response(payloadStream.pipeThrough(new TextEncoderStream()), {
 			headers: {
 				"Content-Type": "text/x-component",
+				Vary: "content-type",
 			},
 		});
 	}
@@ -135,6 +136,7 @@ export async function handleRequest(
 		status: routerPayload.type === "render" ? routerPayload.status : 200,
 		headers: {
 			"Content-Type": "text/x-component",
+			Vary: "content-type",
 		},
 	});
 }
@@ -151,7 +153,8 @@ export type RouterRenderPayload = {
 	errors: Record<string, unknown> | null;
 	loaderData: Record<string, unknown>;
 	manifest: UNSAFE_AssetsManifest;
-	rendered: DataRouteObject[];
+	matches: { id: string }[];
+	rendered: Record<string, DataRouteObject & { pathname: string }>;
 	status: number;
 	url: URL;
 };
@@ -267,9 +270,11 @@ export async function runServerRouter(
 	}));
 
 	const routesManifest: UNSAFE_AssetsManifest["routes"] = {};
-	let rendered: DataRouteObject[] = [];
+	let rendered: Record<string, DataRouteObject & { pathname: string }> = {};
+	let last: DataRouteObject | undefined;
 	for (let i = (context.matches?.length ?? 0) - 1; i >= 0; i--) {
 		const match = context.matches?.[i];
+		if (!match) throw new Error("No match");
 		const mod = await (
 			match?.route as unknown as
 				| {
@@ -296,75 +301,80 @@ export async function runServerRouter(
 			path: match.route.path,
 		};
 
-		rendered = match
-			? [
-					{
-						id: match.route.id,
-						caseSensitive: match.route.caseSensitive,
-						index: match.route.index as false | undefined,
-						path: match.route.path,
-						children: match.route.index ? undefined : rendered,
-						pathname: match.pathname,
-						...(mod
-							? {
-									action:
-										("action" in mod && mod.action) ||
-										("clientAction" in mod && mod.clientAction)
-											? true
-											: undefined,
-									loader:
-										("loader" in mod && mod.loader) ||
-										("clientLoader" in mod && mod.clientLoader)
-											? true
-											: undefined,
-									clientAction:
-										mod.clientAction && h(mod.clientAction as any, null),
-									clientLoader:
-										mod.clientLoader && h(mod.clientLoader as any, null),
-									clientShouldRevalidate:
-										mod.shouldRevalidate &&
-										h(mod.shouldRevalidate as any, null),
-									hasErrorBoundary: mod.ErrorBoundary != null,
-									HydrateFallback: mod.HydrateFallback,
-									element: mod.Layout
-										? h(
-												mod.Layout as any,
-												null,
-												mod.default
-													? h(mod.default as any, {
-															params: match.params,
-															loaderData: context.loaderData[match.route.id],
-															actionData: context.actionData?.[match.route.id],
-															matches: renderedMatches,
-														})
-													: h(Outlet as any, null),
-											)
-										: h(WrappedRoute, {
-												element: mod.default
-													? h(mod.default as any, {
-															loaderData: context.loaderData[match.route.id],
-															actionData: context.actionData?.[match.route.id],
-														})
-													: h(Outlet as any, null),
-											}),
-									errorElement:
-										mod.ErrorBoundary &&
-										(mod.Layout
-											? h(
-													mod.Layout as any,
-													null,
-													h(WrappedError, {
-														element: h(mod.ErrorBoundary as any, {}),
-													}),
-												)
-											: h(WrappedError, {
-													element: h(mod.ErrorBoundary as any, {}),
-												})),
-								}
-							: {}),
-					} as DataRouteObject,
-				]
-			: rendered;
+		last = rendered[match.route.id] = {
+			id: match.route.id,
+			caseSensitive: match.route.caseSensitive,
+			index: match.route.index as false | undefined,
+			path: match.route.path,
+			children: match.route.index ? undefined : last ? [last] : undefined,
+			pathname: match.pathname,
+			...(mod
+				? {
+						action:
+							("action" in mod && mod.action) ||
+							("clientAction" in mod && mod.clientAction)
+								? true
+								: undefined,
+						loader:
+							("loader" in mod && mod.loader) ||
+							("clientLoader" in mod && mod.clientLoader)
+								? true
+								: undefined,
+						clientAction: mod.clientAction && h(mod.clientAction as any, null),
+						clientLoader: mod.clientLoader && h(mod.clientLoader as any, null),
+						clientShouldRevalidate:
+							mod.shouldRevalidate && h(mod.shouldRevalidate as any, null),
+						hasErrorBoundary: mod.ErrorBoundary != null,
+						hydrateFallbackElement:
+							mod.HydrateFallback &&
+							h(mod.HydrateFallback as any, { params: match.params }),
+						element: mod.Layout
+							? h(
+									mod.Layout as any,
+									null,
+									mod.default
+										? h(mod.default as any, {
+												params: match.params,
+												loaderData: context.loaderData[match.route.id],
+												actionData: context.actionData?.[match.route.id],
+												matches: renderedMatches,
+											})
+										: h(Outlet as any, null),
+								)
+							: h(WrappedRoute, {
+									element: mod.default
+										? h(mod.default as any, {
+												loaderData: context.loaderData[match.route.id],
+												actionData: context.actionData?.[match.route.id],
+											})
+										: h(Outlet as any, null),
+								}),
+						errorElement:
+							mod.ErrorBoundary &&
+							(mod.Layout
+								? h(
+										mod.Layout as any,
+										null,
+										h(WrappedError, {
+											element: h(mod.ErrorBoundary as any, {}),
+										}),
+									)
+								: h(WrappedError, {
+										element: h(mod.ErrorBoundary as any, {}),
+									})),
+					}
+				: {
+						element: h(Outlet, null),
+					}),
+		} as DataRouteObject & { pathname: string };
+	}
+
+	const loaderData = { ...context.loaderData };
+	for (const match of context.matches) {
+		if ((match.route as any).hydrateFallbackElement) {
+			console.log("HAS FALLBACK", match.route.id);
+			delete loaderData[match.route.id];
+		}
 	}
 
 	return {
@@ -380,8 +390,9 @@ export async function runServerRouter(
 			routes: routesManifest,
 		},
 		errors: context.errors,
-		loaderData: context.loaderData,
+		loaderData,
 		rendered,
+		matches: context.matches.map((match) => ({ id: match.route.id })),
 		status: status > context.statusCode ? status : context.statusCode,
 		url,
 	};

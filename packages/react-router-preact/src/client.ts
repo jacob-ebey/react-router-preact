@@ -60,11 +60,17 @@ function cacheRoutes(rendered: DataRouteObject[]) {
 	}
 }
 
-function createHydratedRoutes(rendered: DataRouteObject[]): DataRouteObject[] {
-	cacheRoutes(rendered);
-	const hydrated: DataRouteObject[] = [];
-	for (const route of rendered) {
-		const hydratedRoute: DataRouteObject = {
+function createHydratedRoutes(
+	matches: { id: string }[],
+	rendered: Record<string, DataRouteObject>,
+): DataRouteObject[] {
+	cacheRoutes(Object.values(rendered));
+
+	let last: DataRouteObject | undefined;
+	for (let i = matches.length - 1; i >= 0; i--) {
+		const match = matches[i];
+		const route = rendered[match.id];
+		const hydratedRoute = {
 			...route,
 			lazy: async () => {
 				let shouldRevalidate: ShouldRevalidateFunction | undefined;
@@ -77,20 +83,38 @@ function createHydratedRoutes(rendered: DataRouteObject[]): DataRouteObject[] {
 					shouldRevalidate = await rawShouldRevalidate();
 					hydratedRoute.shouldRevalidate = shouldRevalidate;
 				}
-				console.log({ rawShouldRevalidate, shouldRevalidate });
-				return hydratedRoute as any;
+
+				return {
+					shouldRevalidate,
+				};
 			},
 			element: h(HydratedRoute, {
 				id: route.id,
 				pathname: (route as unknown as { pathname: string }).pathname,
 			}) as any,
-		};
-		hydrated.push(hydratedRoute);
-		if (route.children) {
-			hydratedRoute.children = createHydratedRoutes(route.children);
-		}
+			children: last ? [last] : undefined,
+		} as DataRouteObject;
+		last = hydratedRoute;
 	}
-	return hydrated;
+	if (!last) throw new Error("No last route");
+	return [last];
+}
+
+function createServerRoutes(
+	matches: { id: string }[],
+	rendered: Record<string, DataRouteObject>,
+) {
+	let last: DataRouteObject | undefined;
+	for (let i = matches.length - 1; i >= 0; i--) {
+		const match = matches[i];
+		const route = rendered[match.id];
+		last = {
+			...route,
+			children: last ? [last] : undefined,
+		} as DataRouteObject;
+	}
+	if (!last) throw new Error("No last route");
+	return [last];
 }
 
 function HydratedRoute() {
@@ -113,7 +137,11 @@ export function ClientRouter({
 }) {
 	const router = useMemo(() => {
 		if (typeof document !== "undefined") {
-			const hydratedRoutes = createHydratedRoutes(payload.rendered);
+			const hydratedRoutes = createHydratedRoutes(
+				payload.matches,
+				payload.rendered,
+			);
+			cachedPatches.add(payload.url.pathname);
 			if (!browserRouter) {
 				browserRouter = createBrowserRouter(hydratedRoutes, {
 					hydrationData: {
@@ -128,38 +156,44 @@ export function ClientRouter({
 						// TODO: Take into account existing matches that don't want to revalidate
 						const url = new URL(path, window.location.origin);
 						url.pathname += ".data";
-						await fetch(url).then(async (response) => {
-							if (!response.body) {
-								throw new Error("No body");
-							}
-							const serverPayload = await decode<ServerPayload>(
-								response.body.pipeThrough(new TextDecoderStream()),
-								{
-									decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
-									decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
-								},
-							);
-							const payload = (
-								serverPayload.root.props as unknown as {
-									payload: RouterRenderPayload;
+						await fetch(url)
+							.then(async (response) => {
+								if (!response.body) {
+									throw new Error("No body");
 								}
-							).payload;
-
-							if (payload.type === "render") {
-								const patchRecursive = (
-									routes: DataRouteObject[],
-									id: string | null = null,
-								) => {
-									patch(id, routes);
-									for (const route of routes) {
-										if (route.children) {
-											patchRecursive(route.children, route.id);
-										}
+								const serverPayload = await decode<ServerPayload>(
+									response.body.pipeThrough(new TextDecoderStream()),
+									{
+										decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
+										decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
+									},
+								);
+								const payload = (
+									serverPayload.root.props as unknown as {
+										payload: RouterRenderPayload;
 									}
-								};
-								patchRecursive(createHydratedRoutes(payload.rendered));
-							}
-						});
+								).payload;
+
+								if (payload.type === "render") {
+									const patchRecursive = (
+										routes: DataRouteObject[],
+										id: string | null = null,
+									) => {
+										patch(id, routes);
+										for (const route of routes) {
+											if (route.children) {
+												patchRecursive(route.children, route.id);
+											}
+										}
+									};
+									patchRecursive(
+										createHydratedRoutes(payload.matches, payload.rendered),
+									);
+								}
+							})
+							.catch(() => {
+								cachedPatches.delete(path);
+							});
 					},
 					async dataStrategy({
 						fetcherKey,
@@ -229,7 +263,7 @@ export function ClientRouter({
 				errors: payload.errors,
 				loaderData: payload.loaderData,
 			},
-			routes: payload.rendered,
+			routes: createServerRoutes(payload.matches, payload.rendered),
 		});
 	}, [payload]);
 

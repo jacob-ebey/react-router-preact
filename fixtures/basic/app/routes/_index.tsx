@@ -35,3 +35,7 @@ export default function Index({ loaderData }: Route.ComponentProps) {
 		</>
 	);
 }
+
+export function HydrateFallback() {
+	return <h1>Loading...</h1>;
+}
