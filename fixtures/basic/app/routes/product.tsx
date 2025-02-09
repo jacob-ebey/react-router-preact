@@ -28,7 +28,6 @@ export async function clientAction({ serverAction }: Route.ClientActionArgs) {
 	return {
 		mutated: "CLIENT!",
 	};
-	// return serverAction();
 }
 
 export default function Component({
