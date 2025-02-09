@@ -332,9 +332,15 @@ export async function runServerRouter(
 						clientShouldRevalidate:
 							mod.shouldRevalidate && h(mod.shouldRevalidate as any, null),
 						hasErrorBoundary: mod.ErrorBoundary != null,
-						hydrateFallbackElement:
-							mod.HydrateFallback &&
-							h(mod.HydrateFallback as any, { params: match.params }),
+						hydrateFallbackElement: mod.HydrateFallback
+							? mod.Layout
+								? h(
+										mod.Layout as any,
+										null,
+										h(mod.HydrateFallback as any, { params: match.params }),
+									)
+								: h(mod.HydrateFallback as any, { params: match.params })
+							: undefined,
 						element: mod.Layout
 							? h(
 									mod.Layout as any,
