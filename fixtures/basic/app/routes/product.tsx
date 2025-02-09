@@ -1,8 +1,10 @@
-import { useLoaderData } from "react-router";
+import { Form, useLoaderData } from "react-router";
 import type { Route } from "./+types/product";
 
+let mutations = 0;
+
 export function loader({ params }: Route.LoaderArgs) {
-	return { name: `Super cool product #${params.id}` };
+	return { name: `Super cool product #${params.id}`, mutations };
 }
 
 export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
@@ -14,10 +16,30 @@ export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
 	};
 }
 
-export default function Component({ loaderData }: Route.ComponentProps) {
-	return <h1>{useLoaderData().name}</h1>;
+export function action({ params }: Route.ActionArgs) {
+	mutations++;
+	return {
+		mutated: "YAY!",
+	};
+}
+
+export default function Component({
+	actionData,
+	loaderData,
+}: Route.ComponentProps) {
+	return (
+		<>
+			<h1>{loaderData.name}</h1>
+			<p>Mutations: {loaderData.mutations}</p>
+			<Form method="post">
+				<input type="text" name="name" />
+				<button type="submit">Submit</button>
+			</Form>
+			<pre>{JSON.stringify(actionData, null, 2)}</pre>
+		</>
+	);
 }
 
 export function HydrateFallback({ params }: Route.HydrateFallbackProps) {
-	return <h1>Loading {params.id}...</h1>;
+	return <h1>Loading product {params.id}...</h1>;
 }

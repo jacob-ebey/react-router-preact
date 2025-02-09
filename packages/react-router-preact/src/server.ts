@@ -310,6 +310,13 @@ export async function runServerRouter(
 			pathname: match.pathname,
 			...(mod
 				? {
+						hasAction: "action" in match.route && !!match.route.action,
+						hasClientAction:
+							"clientAction" in match.route && !!match.route.clientAction,
+						hasClientLoader:
+							"clientLoader" in match.route && !!match.route.clientLoader,
+						hasLoader: "loader" in match.route && !!match.route.loader,
+
 						action:
 							("action" in mod && mod.action) ||
 							("clientAction" in mod && mod.clientAction)

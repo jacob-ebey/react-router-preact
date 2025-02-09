@@ -17,6 +17,7 @@ import {
 	useMatches,
 	useParams,
 	useRouteError,
+	type ClientActionFunction,
 	type ClientLoaderFunction,
 	type DataRouteObject,
 	type ShouldRevalidateFunction,
@@ -203,7 +204,98 @@ export function ClientRouter({
 						context,
 					}) {
 						if (request.method !== "GET") {
-							throw new Error("Only GET requests are supported so far.");
+							let hasServerActions = false;
+							const matchesToLoad = matches.filter((m) => {
+								if (m.shouldLoad && (m.route as any).hasAction) {
+									hasServerActions = true;
+								}
+								return m.shouldLoad;
+							});
+
+							let routerPayloadPromise:
+								| Promise<RouterRenderPayload>
+								| undefined;
+							if (hasServerActions) {
+								const url = new URL(request.url);
+								url.pathname += ".data";
+
+								routerPayloadPromise = fetch(
+									new Request(url, {
+										body:
+											url.protocol !== "https:"
+												? await request.blob()
+												: request.body,
+										duplex: "half",
+										headers: request.headers,
+										method: request.method,
+										signal: request.signal,
+									} as RequestInit & { duplex?: "half" }),
+								)
+									.then(async (response) => {
+										if (!response.body) {
+											throw new Error("No body");
+										}
+										const serverPayload = await decode<ServerPayload>(
+											response.body.pipeThrough(new TextDecoderStream()),
+											{
+												decodeClientReference:
+													window.__DECODE_CLIENT_REFERENCE__,
+												decodeServerReference:
+													window.__DECODE_SERVER_REFERENCE__,
+											},
+										);
+										return (
+											serverPayload.root.props as unknown as {
+												payload: RouterRenderPayload;
+											}
+										).payload;
+									})
+									.then((payload) => {
+										cacheRoutes(Object.values(payload.rendered));
+										return payload;
+									});
+							}
+
+							const results = await Promise.all(
+								matchesToLoad.map(async (match) => {
+									const result = await match.resolve(async () => {
+										const routeCache = cachedRoutes.get(match.route.id);
+										const cachedRoute = routeCache?.get(match.pathname);
+										if (!cachedRoute) {
+											throw new Error("No server render for " + match.route.id);
+										}
+
+										let serverActionData = (
+											await Promise.resolve<any>(routerPayloadPromise)
+										)?.actionData[match.route.id];
+										let actionData = serverActionData;
+
+										const clientActionRef = (match.route as any)
+											.clientAction as any;
+										if (typeof clientActionRef?.type?.raw === "function") {
+											const clientAction: ClientActionFunction =
+												await clientActionRef.type.raw();
+											actionData = await clientAction({
+												context,
+												params,
+												request,
+												serverAction: async () => serverActionData,
+											});
+										}
+
+										return actionData;
+									});
+									return result;
+								}),
+							);
+
+							return results.reduce(
+								(acc, result, i) =>
+									Object.assign(acc, {
+										[matchesToLoad[i].route.id]: result,
+									}),
+								{},
+							);
 						}
 
 						if (fetcherKey) {

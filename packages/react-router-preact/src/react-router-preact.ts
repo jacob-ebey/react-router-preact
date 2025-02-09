@@ -31,10 +31,10 @@ export type FormProps = Omit<RRFormProps, "action"> & {
 	action?: string | ((formData: FormData) => void | Promise<void>);
 };
 
-export function Form({action,...props}: FormProps) {
+export function Form({ action, ...props }: FormProps) {
 	if (!action || typeof action === "string") {
 		return h(RRForm, { action, ...props });
 	}
 
-	return null;
+	throw new Error("Form actions not yet implemented");
 }

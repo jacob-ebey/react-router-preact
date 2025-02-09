@@ -8,7 +8,6 @@
 		"moduleResolution": "bundler",
 		"strict": true,
 		"jsx": "react-jsx",
-		"jsxImportSource": "preact",
 		"baseUrl": ".",
 		"rootDirs": [".", "./.react-router/types"],
 		"paths": {

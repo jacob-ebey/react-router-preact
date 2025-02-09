@@ -17,16 +17,6 @@ export function loader({ params }: Route.LoaderArgs) {
 	};
 }
 
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	console.log("clientLoader");
-	const serverData = await serverLoader();
-
-	return {
-		...serverData,
-		other: serverData.other.toUpperCase(),
-	};
-}
-
 export default function Index({ loaderData }: Route.ComponentProps) {
 	return (
 		<>
@@ -34,8 +24,4 @@ export default function Index({ loaderData }: Route.ComponentProps) {
 			<p>{loaderData.other}</p>
 		</>
 	);
-}
-
-export function HydrateFallback() {
-	return <h1>Loading...</h1>;
 }

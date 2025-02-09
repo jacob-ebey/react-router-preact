@@ -51,6 +51,8 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 	let details = "An unexpected error occurred.";
 	let stack: string | undefined;
 
+	console.error(error);
+
 	if (isRouteErrorResponse(error)) {
 		message = error.status === 404 ? "404" : "Error";
 		details =
@@ -72,4 +74,8 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 			)}
 		</main>
 	);
+}
+
+export function HydrateFallback({ params }: Route.HydrateFallbackProps) {
+	return <h1>Loading...</h1>;
 }

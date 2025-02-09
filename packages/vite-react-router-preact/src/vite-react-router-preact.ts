@@ -217,8 +217,13 @@ export default async function reactRouterPreact({
 							].moduleGraph.invalidateAll();
 						}
 					} else if (server && this.environment.name === environments.client) {
-						for (const ssrEnvironment of environments.ssr) {
-							server.environments[ssrEnvironment].moduleGraph.invalidateAll();
+						for (const serverishEnvironment of [
+							...environments.ssr,
+							...environments.server,
+						]) {
+							server.environments[
+								serverishEnvironment
+							].moduleGraph.invalidateAll();
 						}
 					}
 				}
