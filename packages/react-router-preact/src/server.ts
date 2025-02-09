@@ -20,8 +20,11 @@ import {
 	WrappedRoute,
 } from "react-router-preact/client";
 
-// @ts-expect-error
-import { assets } from "virtual:preact-server-components/server";
+import {
+	assets,
+	loadServerReference,
+	// @ts-expect-error
+} from "virtual:preact-server-components/server";
 
 export type HandleRequestOptions = {
 	basename?: string;
@@ -36,18 +39,14 @@ export type HandleRequestOptions = {
 export type BaseServerPayload = {
 	root: VNode;
 	url: URL;
+	result?: Promise<unknown>;
 };
 
 export type RenderPayload = BaseServerPayload & {
 	type: "render";
 };
 
-export type ActionPayload = BaseServerPayload & {
-	type: "action";
-	result: unknown;
-};
-
-export type ServerPayload = RenderPayload | ActionPayload;
+export type ServerPayload = RenderPayload;
 
 export async function handleRequest(
 	request: Request,
@@ -62,6 +61,60 @@ export async function handleRequest(
 		loadServerReference,
 	}: HandleRequestOptions,
 ) {
+	let result: Promise<unknown> | undefined;
+	if (
+		request.method === "POST" &&
+		request.headers.get("content-type")?.match(/\bmultipart\/form-data\b/)
+	) {
+		const formData = await request.formData();
+		const actionId = formData.get("__preact-action");
+		if (typeof actionId === "string") {
+			formData.delete("__preact-action");
+			const reference = (await loadServerReference(actionId)) as (
+				...args: unknown[]
+			) => unknown;
+
+			result = (async () => reference(formData))();
+			try {
+				await result;
+			} catch {}
+
+			request = new Request(request.url, {
+				headers: request.headers,
+				signal: request.signal,
+			});
+		} else {
+			request = new Request(request.url, {
+				body: formData,
+				headers: request.headers,
+				method: request.method,
+				signal: request.signal,
+			});
+		}
+	} else if (
+		request.method === "POST" &&
+		request.headers.get("psc-action") &&
+		request.body
+	) {
+		const actionId = request.headers.get("psc-action") || "";
+
+		const reference = (await loadServerReference(actionId)) as (
+			...args: unknown[]
+		) => unknown;
+		const args = await decode<unknown[]>(
+			request.body.pipeThrough(new TextDecoderStream()),
+		);
+		const result = (async () => reference(...args))();
+		try {
+			await result;
+		} catch {}
+
+		request = new Request(request.url, {
+			headers: request.headers,
+			signal: request.signal,
+		});
+	}
+
 	const routerPayload = await runServerRouter(request, routes, {
 		basename,
 		future,
@@ -100,47 +153,12 @@ export async function handleRequest(
 			"Tried to call both React Router and Preact Server Component actions",
 		);
 	}
-	if (
-		!ranReactRouterAction &&
-		actionId &&
-		request.method === "POST" &&
-		request.body
-	) {
-		const reference = (await loadServerReference(actionId)) as (
-			...args: unknown[]
-		) => unknown;
-		const args = await decode<unknown[]>(
-			request.body.pipeThrough(new TextDecoderStream()),
-		);
-		const result = (async () => reference(...args))();
-		try {
-			await result;
-		} catch {}
-
-		const payload: ActionPayload = {
-			type: "action",
-			result,
-			root: router as any,
-			url,
-		};
-
-		const payloadStream = encode(payload, {
-			encodeClientReference,
-			encodeServerReference,
-			redactErrors,
-		});
-		return new Response(payloadStream.pipeThrough(new TextEncoderStream()), {
-			headers: {
-				"Content-Type": "text/x-component",
-				Vary: "content-type",
-			},
-		});
-	}
 
 	const payload: RenderPayload = {
 		type: "render",
 		root: router as any,
 		url,
+		result,
 	};
 
 	const payloadStream = encode(payload, {

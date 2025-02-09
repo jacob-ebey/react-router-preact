@@ -10,16 +10,51 @@ import {
 // @ts-expect-error
 import { loadClientReference } from "virtual:preact-server-components/client";
 
-import type { ActionPayload } from "./server.ts";
+import type { ServerPayload } from "./server.ts";
 import type { EncodedClientReference } from "./vite.server.ts";
 
 declare global {
 	interface Window {
+		__CALL_SERVER__?: (id: string, args: unknown[]) => Promise<unknown>;
 		__SET_PAYLOAD__?: (root: VNode<any>) => void;
 	}
 }
 
 const cache = new Map<string, ComponentType>();
+
+if (typeof document !== "undefined") {
+	window.__CALL_SERVER__ = async (id: string, args: unknown[]) => {
+		const encoded = encode(args);
+		const body =
+			window.location.protocol !== "https:"
+				? await readToString(encoded)
+				: encoded.pipeThrough(new TextEncoderStream());
+		const response = await fetch(window.location.href, {
+			body,
+			headers: {
+				accept: "text/x-component",
+				"content-type": "text/x-component",
+				"psc-action": id,
+			},
+			method: "POST",
+			duplex: "half",
+		} as RequestInit & { duplex: "half" });
+		if (!response.body) throw new Error("No body");
+		const payload = await decode<ServerPayload>(
+			response.body.pipeThrough(new TextDecoderStream()),
+			{
+				decodeClientReference,
+				decodeServerReference,
+			},
+		);
+
+		Promise.resolve(payload.root).then((root) =>
+			window.__SET_PAYLOAD__?.(root),
+		);
+
+		return payload.result;
+	};
+}
 
 export const decodeClientReference: DecodeClientReferenceFunction<
 	EncodedClientReference
@@ -64,7 +99,7 @@ export const decodeServerReference: DecodeServerReferenceFunction = (id) => {
 			duplex: "half",
 		} as RequestInit & { duplex: "half" });
 		if (!response.body) throw new Error("No body");
-		const payload = await decode<ActionPayload>(
+		const payload = await decode<ServerPayload>(
 			response.body.pipeThrough(new TextDecoderStream()),
 			{
 				decodeClientReference,

@@ -27,11 +27,7 @@ import {
 	type UNSAFE_RouteModules,
 } from "react-router";
 
-import type {
-	RouterFetcherPayload,
-	RouterRenderPayload,
-	ServerPayload,
-} from "./server.ts";
+import type { RouterRenderPayload, ServerPayload } from "./server.ts";
 
 export { Outlet };
 
@@ -167,8 +163,13 @@ function HydratedRoute() {
 	return cachedRoutes.get(id)?.get(pathname) ?? null;
 }
 
-const cachedPatches = new Set();
-let browserRouter: ReturnType<typeof createBrowserRouter> | undefined;
+// const cachedPatches = new Set();
+// let browserRouter: ReturnType<typeof createBrowserRouter> | undefined;
+const pathsCache = new WeakMap<object, Set<string>>();
+const rotuerCache = new WeakMap<
+	object,
+	ReturnType<typeof createBrowserRouter>
+>();
 export function ClientRouter({
 	payload,
 }: {
@@ -192,7 +193,10 @@ export function ClientRouter({
 				payload.loaderData,
 				payload.actionData,
 			);
+			const cachedPatches = pathsCache.get(payload) ?? new Set();
+			pathsCache.set(payload, cachedPatches);
 			cachedPatches.add(payload.url.pathname);
+			let browserRouter = rotuerCache.get(payload);
 			if (!browserRouter) {
 				browserRouter = createBrowserRouter(hydratedRoutes, {
 					hydrationData,
@@ -521,6 +525,7 @@ export function ClientRouter({
 					},
 				});
 			}
+			rotuerCache.set(payload, browserRouter);
 			return browserRouter;
 		}
 		return UNSAFE_createRouter({

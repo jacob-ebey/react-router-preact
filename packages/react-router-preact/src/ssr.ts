@@ -38,7 +38,7 @@ export async function handleRequest(
 	}
 	const serverResponse = await SERVER.fetch(serverRequest);
 
-	if (isDataRequest) {
+	if (isDataRequest || request.headers.get("accept") === "text/x-component") {
 		return serverResponse;
 	}
 

@@ -1,7 +1,7 @@
 {
 	"include": ["./.react-router/types/**/*", "./app/**/*"],
 	"compilerOptions": {
-		"types": ["vite/client"],
+		"types": ["react-router-preact", "vite/client"],
 		"lib": ["DOM", "DOM.Iterable", "ES2022"],
 		"target": "ES2022",
 		"module": "ESNext",
