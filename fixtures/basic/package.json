@@ -3,7 +3,7 @@
 	"name": "fixture-basic",
 	"type": "module",
 	"scripts": {
-		"build": "vite build",
+		"_build": "vite build",
 		"dev": "vite",
 		"typecheck": "react-router typegen && tsc --noEmit"
 	},
