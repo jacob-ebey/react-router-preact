@@ -46,7 +46,10 @@ export function WrappedRoute({ element }: { element: VNode<any> }) {
 	return element;
 }
 
-const cachedRoutes = new Map<string, Map<string, VNode<any>>>();
+const cachedRoutes = new Map<
+	string,
+	Map<string, VNode<any>> & { outdated?: boolean }
+>();
 function cacheRoutes(rendered: DataRouteObject[]) {
 	for (const route of rendered) {
 		const cache = cachedRoutes.get(route.id) ?? new Map();
@@ -211,19 +214,21 @@ export function ClientRouter({
 						context,
 					}) {
 						if (request.method !== "GET") {
-							let hasServerActions = false;
-							const matchesToLoad = matches.filter((m) => {
-								if (m.shouldLoad && (m.route as any).hasAction) {
-									hasServerActions = true;
-								}
-								return m.shouldLoad;
-							});
+							const matchesToLoad = matches.filter((m) => m.shouldLoad);
 
 							let callServerPromise: Promise<RouterRenderPayload> | undefined;
 							const callServer = async (id: string) => {
 								const url = new URL(request.url);
 								url.pathname += ".data";
 								if (!callServerPromise) {
+									// cachedPatches.clear();
+									// cachedRoutes.clear();
+									const keep = new Set(matches.map((m) => m.route.id));
+									for (const [key, cache] of cachedRoutes.entries()) {
+										if (!keep.has(key)) {
+											cache.outdated = true;
+										}
+									}
 									callServerPromise = fetch(
 										new Request(url, {
 											body:
@@ -308,19 +313,62 @@ export function ClientRouter({
 						}
 
 						const matchesToLoad = matches.filter((m) => m.shouldLoad);
+
+						const missingMatches = new Set(
+							matches
+								.filter((match) => {
+									const routeCache = cachedRoutes.get(match.route.id);
+									return routeCache?.outdated;
+								})
+								.map((match) => match.route.id),
+						);
+
+						let callServerPromise: Promise<RouterRenderPayload> | undefined;
+						if (missingMatches.size > 0) {
+							const url = new URL(request.url);
+							url.pathname += ".data";
+
+							callServerPromise = fetch(
+								new Request(url, {
+									headers: request.headers,
+									signal: request.signal,
+								} as RequestInit),
+							).then(async (response) => {
+								if (!response.body) {
+									throw new Error("No body");
+								}
+								const serverPayload = await decode<ServerPayload>(
+									response.body.pipeThrough(new TextDecoderStream()),
+									{
+										decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
+										decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
+									},
+								);
+								return (
+									serverPayload.root.props as unknown as {
+										payload: RouterRenderPayload;
+									}
+								).payload;
+							});
+						}
+
 						const results = await Promise.all(
 							matchesToLoad.map(async (match) => {
+								const routeCache = cachedRoutes.get(match.route.id);
+								const cachedRoute = routeCache?.get(match.pathname);
+								if (!cachedRoute) {
+									// TODO: Re-fetch the route
+									throw new Error("No server render for " + match.route.id);
+								}
+
+								const serverLoaderData = callServerPromise
+									? callServerPromise.then(
+											(payload) => payload.loaderData[match.route.id],
+										)
+									: (cachedRoute.props.element ?? cachedRoute.props.children)
+											.props.loaderData;
+
 								const result = await match.resolve(async () => {
-									const routeCache = cachedRoutes.get(match.route.id);
-									const cachedRoute = routeCache?.get(match.pathname);
-									if (!cachedRoute) {
-										throw new Error("No server render for " + match.route.id);
-									}
-
-									const serverLoaderData = (
-										cachedRoute.props.element ?? cachedRoute.props.children
-									).props.loaderData;
-
 									let loaderData = serverLoaderData;
 
 									const clientLoaderRef = (match.route as any)
