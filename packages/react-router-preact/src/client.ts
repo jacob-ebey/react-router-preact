@@ -20,6 +20,7 @@ import {
 	type ClientActionFunction,
 	type ClientLoaderFunction,
 	type DataRouteObject,
+	type DataStrategyResult,
 	type ShouldRevalidateFunction,
 	type To,
 	type UNSAFE_AssetsManifest,
@@ -48,17 +49,38 @@ export function WrappedRoute({ element }: { element: VNode<any> }) {
 
 const cachedRoutes = new Map<
 	string,
-	Map<string, VNode<any>> & { outdated?: boolean }
+	Map<string, VNode<any> & { outdated?: boolean }>
 >();
-function cacheRoutes(rendered: DataRouteObject[]) {
+const cachedData = new Map<
+	string,
+	Map<string, { actionData: unknown; loaderData: unknown }>
+>();
+const seen = new WeakMap<object, WeakSet<object>>();
+function cacheRoutes(
+	rendered: DataRouteObject[],
+	loaderData: any,
+	actionData?: any,
+) {
 	for (const route of rendered) {
+		if (!seen.get(route)?.has(loaderData)) {
+			const seenCache = seen.get(route) ?? new WeakSet();
+			seen.set(route, seenCache);
+			seenCache.add(loaderData);
+			const dataCache = cachedData.get(route.id) ?? new Map();
+			cachedData.set(route.id, dataCache);
+			dataCache.set((route as unknown as { pathname: string }).pathname, {
+				actionData: actionData?.[route.id],
+				loaderData: loaderData[route.id],
+			});
+		}
+
 		const cache = cachedRoutes.get(route.id) ?? new Map();
 		cachedRoutes.set(route.id, cache);
 		const existing = cache.get(
 			(route as unknown as { pathname: string }).pathname,
 		);
 		if (existing) {
-			existing.props = (route.element as any)?.props ?? existing.props;
+			existing.outdated = false;
 		} else {
 			cache.set(
 				(route as unknown as { pathname: string }).pathname,
@@ -66,7 +88,7 @@ function cacheRoutes(rendered: DataRouteObject[]) {
 			);
 		}
 		if (route.children) {
-			cacheRoutes(route.children);
+			cacheRoutes(route.children, loaderData, actionData);
 		}
 	}
 }
@@ -74,8 +96,10 @@ function cacheRoutes(rendered: DataRouteObject[]) {
 function createHydratedRoutes(
 	matches: { id: string }[],
 	rendered: Record<string, DataRouteObject>,
+	loaderData: any,
+	actionData?: any,
 ): DataRouteObject[] {
-	cacheRoutes(Object.values(rendered));
+	cacheRoutes(Object.values(rendered), loaderData, actionData);
 
 	let last: DataRouteObject | undefined;
 	for (let i = matches.length - 1; i >= 0; i--) {
@@ -147,19 +171,27 @@ export function ClientRouter({
 	payload: RouterRenderPayload;
 }) {
 	const router = useMemo(() => {
+		const hydrationData = {
+			actionData: payload.actionData,
+			errors: payload.errors,
+			loaderData: Object.fromEntries(
+				Object.entries(payload.loaderData).filter(
+					([key]) => !payload.rendered[key]?.hydrateFallbackElement,
+				),
+			),
+		};
+
 		if (typeof document !== "undefined") {
 			const hydratedRoutes = createHydratedRoutes(
 				payload.matches,
 				payload.rendered,
+				payload.loaderData,
+				payload.actionData,
 			);
 			cachedPatches.add(payload.url.pathname);
 			if (!browserRouter) {
 				browserRouter = createBrowserRouter(hydratedRoutes, {
-					hydrationData: {
-						actionData: payload.actionData,
-						errors: payload.errors,
-						loaderData: payload.loaderData,
-					},
+					hydrationData,
 					async patchRoutesOnNavigation({ matches, patch, path }) {
 						if (cachedPatches.has(path)) return;
 						cachedPatches.add(path);
@@ -198,7 +230,12 @@ export function ClientRouter({
 										}
 									};
 									patchRecursive(
-										createHydratedRoutes(payload.matches, payload.rendered),
+										createHydratedRoutes(
+											payload.matches,
+											payload.rendered,
+											payload.loaderData,
+											payload.actionData,
+										),
 									);
 								}
 							})
@@ -221,14 +258,12 @@ export function ClientRouter({
 								const url = new URL(request.url);
 								url.pathname += ".data";
 								if (!callServerPromise) {
-									// cachedPatches.clear();
-									// cachedRoutes.clear();
-									const keep = new Set(matches.map((m) => m.route.id));
 									for (const [key, cache] of cachedRoutes.entries()) {
-										if (!keep.has(key)) {
-											cache.outdated = true;
+										for (const [pathname, route] of cache.entries()) {
+											route.outdated = true;
 										}
 									}
+
 									callServerPromise = fetch(
 										new Request(url, {
 											body:
@@ -261,7 +296,11 @@ export function ClientRouter({
 									});
 								}
 								return callServerPromise.then((payload) => {
-									cacheRoutes(Object.values(payload.rendered));
+									cacheRoutes(
+										Object.values(payload.rendered),
+										payload.loaderData,
+										payload.actionData,
+									);
 									return payload.actionData?.[id];
 								});
 							};
@@ -318,7 +357,8 @@ export function ClientRouter({
 							matches
 								.filter((match) => {
 									const routeCache = cachedRoutes.get(match.route.id);
-									return routeCache?.outdated;
+									const cachedRouted = routeCache?.get(match.pathname);
+									return !cachedRouted || cachedRouted.outdated;
 								})
 								.map((match) => match.route.id),
 						);
@@ -333,23 +373,32 @@ export function ClientRouter({
 									headers: request.headers,
 									signal: request.signal,
 								} as RequestInit),
-							).then(async (response) => {
-								if (!response.body) {
-									throw new Error("No body");
-								}
-								const serverPayload = await decode<ServerPayload>(
-									response.body.pipeThrough(new TextDecoderStream()),
-									{
-										decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
-										decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
-									},
-								);
-								return (
-									serverPayload.root.props as unknown as {
-										payload: RouterRenderPayload;
+							)
+								.then(async (response) => {
+									if (!response.body) {
+										throw new Error("No body");
 									}
-								).payload;
-							});
+									const serverPayload = await decode<ServerPayload>(
+										response.body.pipeThrough(new TextDecoderStream()),
+										{
+											decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
+											decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
+										},
+									);
+									return (
+										serverPayload.root.props as unknown as {
+											payload: RouterRenderPayload;
+										}
+									).payload;
+								})
+								.then((payload) => {
+									cacheRoutes(
+										Object.values(payload.rendered),
+										payload.loaderData,
+										payload.actionData,
+									);
+									return payload;
+								});
 						}
 
 						const results = await Promise.all(
@@ -365,8 +414,8 @@ export function ClientRouter({
 									? callServerPromise.then(
 											(payload) => payload.loaderData[match.route.id],
 										)
-									: (cachedRoute.props.element ?? cachedRoute.props.children)
-											.props.loaderData;
+									: cachedData.get(match.route.id)?.get(match.pathname)
+											?.loaderData;
 
 								const result = await match.resolve(async () => {
 									let loaderData = serverLoaderData;
@@ -380,7 +429,7 @@ export function ClientRouter({
 											context,
 											params,
 											request,
-											serverLoader: async () => serverLoaderData,
+											serverLoader: async () => serverLoaderData as any,
 										});
 									}
 
@@ -390,12 +439,23 @@ export function ClientRouter({
 							}),
 						);
 
+						await callServerPromise;
+
 						const r = results.reduce(
 							(acc, result, i) =>
 								Object.assign(acc, {
 									[matchesToLoad[i].route.id]: result,
 								}),
-							{},
+							Object.fromEntries(
+								matchesToLoad.map((match) => [
+									match.route.id,
+									{
+										type: "data",
+										result: cachedData.get(match.route.id)?.get(match.pathname)
+											?.loaderData,
+									} satisfies DataStrategyResult,
+								]),
+							),
 						);
 						return r;
 					},
@@ -405,11 +465,7 @@ export function ClientRouter({
 		}
 		return UNSAFE_createRouter({
 			history: createServerHistory(payload.url),
-			hydrationData: {
-				actionData: payload.actionData,
-				errors: payload.errors,
-				loaderData: payload.loaderData,
-			},
+			hydrationData: hydrationData,
 			routes: createServerRoutes(payload.matches, payload.rendered),
 		});
 	}, [payload]);

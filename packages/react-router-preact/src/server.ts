@@ -261,14 +261,6 @@ export async function runServerRouter(
 		};
 	}
 
-	const renderedMatches = context.matches.map((match) => ({
-		id: match.route.id,
-		params: match.params,
-		pathname: match.pathname,
-		data: context.loaderData[match.route.id],
-		handle: undefined,
-	}));
-
 	const routesManifest: UNSAFE_AssetsManifest["routes"] = {};
 	let rendered: Record<string, DataRouteObject & { pathname: string }> = {};
 	let last: DataRouteObject | undefined;
@@ -346,20 +338,16 @@ export async function runServerRouter(
 									mod.Layout as any,
 									null,
 									mod.default
-										? h(mod.default as any, {
-												params: match.params,
-												loaderData: context.loaderData[match.route.id],
-												actionData: context.actionData?.[match.route.id],
-												matches: renderedMatches,
+										? h(WrappedRoute, {
+												element: mod.default
+													? h(mod.default as any, {})
+													: h(Outlet as any, null),
 											})
 										: h(Outlet as any, null),
 								)
 							: h(WrappedRoute, {
 									element: mod.default
-										? h(mod.default as any, {
-												loaderData: context.loaderData[match.route.id],
-												actionData: context.actionData?.[match.route.id],
-											})
+										? h(mod.default as any, {})
 										: h(Outlet as any, null),
 								}),
 						errorElement:
@@ -382,13 +370,6 @@ export async function runServerRouter(
 		} as DataRouteObject & { pathname: string };
 	}
 
-	const loaderData = { ...context.loaderData };
-	for (const match of context.matches) {
-		if ((match.route as any).hydrateFallbackElement) {
-			delete loaderData[match.route.id];
-		}
-	}
-
 	return {
 		type: "render",
 		actionData: context.actionData,
@@ -402,7 +383,7 @@ export async function runServerRouter(
 			routes: routesManifest,
 		},
 		errors: context.errors,
-		loaderData,
+		loaderData: context.loaderData,
 		rendered,
 		matches: context.matches.map((match) => ({ id: match.route.id })),
 		status: status > context.statusCode ? status : context.statusCode,
