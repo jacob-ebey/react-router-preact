@@ -147,7 +147,6 @@ export default async function reactRouterPreact({
 		{
 			id: "root",
 			file: path.relative(appDirectory, rootRoutePath),
-			path: "",
 			children: await loadRoutesConfig(routesConfigPath),
 		},
 	];
