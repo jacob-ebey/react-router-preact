@@ -1,4 +1,4 @@
-import { Form, useLoaderData } from "react-router";
+import { Form } from "react-router";
 import type { Route } from "./+types/product";
 
 let mutations = 0;
@@ -21,6 +21,14 @@ export function action({ params }: Route.ActionArgs) {
 	return {
 		mutated: "YAY!",
 	};
+}
+
+export async function clientAction({ serverAction }: Route.ClientActionArgs) {
+	await serverAction();
+	return {
+		mutated: "CLIENT!",
+	};
+	// return serverAction();
 }
 
 export default function Component({

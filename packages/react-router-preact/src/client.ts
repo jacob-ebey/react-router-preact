@@ -212,26 +212,23 @@ export function ClientRouter({
 								return m.shouldLoad;
 							});
 
-							let routerPayloadPromise:
-								| Promise<RouterRenderPayload>
-								| undefined;
-							if (hasServerActions) {
+							let callServerPromise: Promise<RouterRenderPayload> | undefined;
+							const callServer = async (id: string) => {
 								const url = new URL(request.url);
 								url.pathname += ".data";
-
-								routerPayloadPromise = fetch(
-									new Request(url, {
-										body:
-											url.protocol !== "https:"
-												? await request.blob()
-												: request.body,
-										duplex: "half",
-										headers: request.headers,
-										method: request.method,
-										signal: request.signal,
-									} as RequestInit & { duplex?: "half" }),
-								)
-									.then(async (response) => {
+								if (!callServerPromise) {
+									callServerPromise = fetch(
+										new Request(url, {
+											body:
+												url.protocol !== "https:"
+													? await request.blob()
+													: request.body,
+											duplex: "half",
+											headers: request.headers,
+											method: request.method,
+											signal: request.signal,
+										} as RequestInit & { duplex?: "half" }),
+									).then(async (response) => {
 										if (!response.body) {
 											throw new Error("No body");
 										}
@@ -249,12 +246,13 @@ export function ClientRouter({
 												payload: RouterRenderPayload;
 											}
 										).payload;
-									})
-									.then((payload) => {
-										cacheRoutes(Object.values(payload.rendered));
-										return payload;
 									});
-							}
+								}
+								return callServerPromise.then((payload) => {
+									cacheRoutes(Object.values(payload.rendered));
+									return payload.actionData?.[id];
+								});
+							};
 
 							const results = await Promise.all(
 								matchesToLoad.map(async (match) => {
@@ -265,10 +263,7 @@ export function ClientRouter({
 											throw new Error("No server render for " + match.route.id);
 										}
 
-										let serverActionData = (
-											await Promise.resolve<any>(routerPayloadPromise)
-										)?.actionData[match.route.id];
-										let actionData = serverActionData;
+										let actionData: any;
 
 										const clientActionRef = (match.route as any)
 											.clientAction as any;
@@ -279,8 +274,11 @@ export function ClientRouter({
 												context,
 												params,
 												request,
-												serverAction: async () => serverActionData,
+												serverAction: async () =>
+													callServer(match.route.id) as any,
 											});
+										} else {
+											actionData = await callServer(match.route.id);
 										}
 
 										return actionData;
