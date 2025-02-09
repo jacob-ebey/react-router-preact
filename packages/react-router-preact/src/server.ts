@@ -372,7 +372,6 @@ export async function runServerRouter(
 	const loaderData = { ...context.loaderData };
 	for (const match of context.matches) {
 		if ((match.route as any).hydrateFallbackElement) {
-			console.log("HAS FALLBACK", match.route.id);
 			delete loaderData[match.route.id];
 		}
 	}
