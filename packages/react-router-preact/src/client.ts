@@ -397,7 +397,6 @@ export function ClientRouter({
 								}),
 							{},
 						);
-						console.log(r);
 						return r;
 					},
 				});
