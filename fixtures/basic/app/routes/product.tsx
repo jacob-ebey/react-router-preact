@@ -1,4 +1,4 @@
-import { Form } from "react-router";
+import { Form, useFetcher } from "react-router";
 import type { Route } from "./+types/product";
 
 import { getMutations, incrementMutations } from "~/api";
@@ -37,6 +37,8 @@ export default function Component({
 	actionData,
 	loaderData,
 }: Route.ComponentProps) {
+	const fetcher = useFetcher();
+
 	return (
 		<>
 			<h1>{loaderData.name}</h1>
@@ -46,6 +48,10 @@ export default function Component({
 				<button type="submit">Submit</button>
 			</Form>
 			<pre>{JSON.stringify(actionData, null, 2)}</pre>
+			<button type="button" onClick={() => fetcher.load(".")}>
+				Load
+			</button>
+			<pre>{fetcher.data && JSON.stringify(fetcher.data)}</pre>
 		</>
 	);
 }

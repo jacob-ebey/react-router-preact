@@ -27,7 +27,11 @@ import {
 	type UNSAFE_RouteModules,
 } from "react-router";
 
-import type { RouterRenderPayload, ServerPayload } from "./server.ts";
+import type {
+	RouterFetcherPayload,
+	RouterRenderPayload,
+	ServerPayload,
+} from "./server.ts";
 
 export { Outlet };
 
@@ -308,12 +312,6 @@ export function ClientRouter({
 							const results = await Promise.all(
 								matchesToLoad.map(async (match) => {
 									const result = await match.resolve(async () => {
-										const routeCache = cachedRoutes.get(match.route.id);
-										const cachedRoute = routeCache?.get(match.pathname);
-										if (!cachedRoute) {
-											throw new Error("No server render for " + match.route.id);
-										}
-
 										let actionData: any;
 
 										const clientActionRef = (match.route as any)
@@ -348,7 +346,77 @@ export function ClientRouter({
 						}
 
 						if (fetcherKey) {
-							throw new Error("Fetchers not yet implemented.");
+							let fetcherMatch = matches.find((m) => m.shouldLoad);
+							if (!fetcherMatch) {
+								throw new Error("No fetcher match found");
+							}
+							const matchesToLoad = [fetcherMatch];
+
+							const url = new URL(request.url);
+							url.pathname += ".data";
+							url.searchParams.set("_route", fetcherMatch.route.id);
+
+							let callServerPromise: Promise<any> | undefined;
+							const callServer = () => {
+								if (callServerPromise) return callServerPromise;
+								callServerPromise = fetch(
+									new Request(url, {
+										headers: request.headers,
+										signal: request.signal,
+									} as RequestInit),
+								).then(async (response) => {
+									if (!response.body) {
+										throw new Error("No body");
+									}
+									const routerPayload = await decode<any>(
+										response.body.pipeThrough(new TextDecoderStream()),
+										{
+											decodeClientReference: window.__DECODE_CLIENT_REFERENCE__,
+											decodeServerReference: window.__DECODE_SERVER_REFERENCE__,
+										},
+									);
+									return routerPayload;
+								});
+								return callServerPromise;
+							};
+
+							const results = await Promise.all(
+								matchesToLoad.map(async (match) => {
+									const result = await match.resolve(async () => {
+										let data: any;
+										const clientMethodRef = (match.route as any)[
+											request.method !== "GET" ? "clientAction" : "clientLoader"
+										];
+										if (typeof clientMethodRef?.type?.raw === "function") {
+											const clientMethod:
+												| ClientActionFunction
+												| ClientLoaderFunction =
+												await clientMethodRef.type.raw();
+											data = await clientMethod({
+												context,
+												params,
+												request,
+												[request.method !== "GET"
+													? "serverAction"
+													: "serverLoader"]: async () => callServer(),
+											} as any);
+										} else {
+											data = await callServer();
+										}
+
+										return data;
+									});
+									return result;
+								}),
+							);
+
+							return results.reduce(
+								(acc, result, i) =>
+									Object.assign(acc, {
+										[matchesToLoad[i].route.id]: result,
+									}),
+								{},
+							);
 						}
 
 						const matchesToLoad = matches.filter((m) => m.shouldLoad);
@@ -403,13 +471,6 @@ export function ClientRouter({
 
 						const results = await Promise.all(
 							matchesToLoad.map(async (match) => {
-								const routeCache = cachedRoutes.get(match.route.id);
-								const cachedRoute = routeCache?.get(match.pathname);
-								if (!cachedRoute) {
-									// TODO: Re-fetch the route
-									throw new Error("No server render for " + match.route.id);
-								}
-
 								const serverLoaderData = callServerPromise
 									? callServerPromise.then(
 											(payload) => payload.loaderData[match.route.id],
@@ -441,7 +502,7 @@ export function ClientRouter({
 
 						await callServerPromise;
 
-						const r = results.reduce(
+						return results.reduce(
 							(acc, result, i) =>
 								Object.assign(acc, {
 									[matchesToLoad[i].route.id]: result,
@@ -457,7 +518,6 @@ export function ClientRouter({
 								]),
 							),
 						);
-						return r;
 					},
 				});
 			}

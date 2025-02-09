@@ -67,6 +67,22 @@ export async function handleRequest(
 		future,
 		requestContext,
 	});
+
+	if (routerPayload.type === "fetcher") {
+		const payloadStream = encode(routerPayload.promise, {
+			encodeClientReference,
+			encodeServerReference,
+			redactErrors,
+		});
+		return new Response(payloadStream.pipeThrough(new TextEncoderStream()), {
+			status: 200,
+			headers: {
+				"Content-Type": "text/x-component",
+				Vary: "content-type",
+			},
+		});
+	}
+
 	const ranReactRouterAction =
 		routerPayload.type === "render" &&
 		Object.keys(routerPayload.actionData ?? {}).length > 0;
@@ -159,7 +175,15 @@ export type RouterRenderPayload = {
 	url: URL;
 };
 
-export type RouterPayload = RouterRedirectPayload | RouterRenderPayload;
+export type RouterFetcherPayload = {
+	type: "fetcher";
+	promise: Promise<unknown>;
+};
+
+export type RouterPayload =
+	| RouterRedirectPayload
+	| RouterRenderPayload
+	| RouterFetcherPayload;
 
 export async function runServerRouter(
 	request: Request,
@@ -230,6 +254,17 @@ export async function runServerRouter(
 	}
 
 	const handler = createStaticHandler(serverRoutes, { basename, future });
+
+	const requestedRoute = url.searchParams.get("_route");
+	if (requestedRoute) {
+		return {
+			type: "fetcher",
+			promise: handler.queryRoute(request, {
+				routeId: requestedRoute,
+				requestContext,
+			}),
+		};
+	}
 
 	// TODO: Should we should strip out the search params and other things that can't be prerendered?
 	const urlThatCanBePrerendered = new URL(url.href);
