@@ -4,10 +4,13 @@ export default defineConfig({
 	entry: [
 		"src/react-router-preact.ts",
 		"src/browser.ts",
+		"src/browser-entry.ts",
 		"src/client.ts",
 		"src/dom.ts",
 		"src/server.ts",
+		"src/server-entry.ts",
 		"src/ssr.ts",
+		"src/ssr-entry.ts",
 		"src/vite.browser.ts",
 		"src/vite.server.ts",
 		"src/vite.ssr.ts",
@@ -27,5 +30,6 @@ export default defineConfig({
 		"react-router-preact/vite.browser",
 		"virtual:preact-server-components/client",
 		"virtual:preact-server-components/server",
+		"virtual:react-router-preact/server-routes",
 	],
 });

@@ -42,9 +42,18 @@
 			"types": "./dist/vite.ssr.d.ts",
 			"default": "./dist/vite.ssr.js"
 		},
-		"./browser-entry.ts": "./bundled/browser-entry.ts",
-		"./server-entry.ts": "./bundled/server-entry.ts",
-		"./ssr-entry.ts": "./bundled/ssr-entry.ts",
+		"./browser-entry.ts": {
+			"types": "./dist/browser-entry.d.ts",
+			"default": "./dist/browser-entry.js"
+		},
+		"./server-entry.ts": {
+			"types": "./dist/server-entry.d.ts",
+			"default": "./dist/server-entry.js"
+		},
+		"./ssr-entry.ts": {
+			"types": "./dist/ssr-entry.d.ts",
+			"default": "./dist/ssr-entry.js"
+		},
 		"./package.json": "./package.json"
 	},
 	"scripts": {
