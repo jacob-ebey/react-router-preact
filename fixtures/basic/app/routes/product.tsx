@@ -2,6 +2,7 @@ import { Form, useFetcher } from "react-router";
 import type { Route } from "./+types/product";
 
 import { getMutations, incrementMutations } from "~/api";
+import { Counter } from "~/counter";
 
 export function loader({ params }: Route.LoaderArgs) {
 	return {
@@ -41,6 +42,7 @@ export default function Component({
 
 	return (
 		<>
+			<Counter />
 			<h1>{loaderData.name}</h1>
 			<p>Mutations: {loaderData.mutations}</p>
 			<Form method="post">

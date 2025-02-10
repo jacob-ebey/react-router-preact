@@ -12,6 +12,7 @@ import {
 import type { Route } from "./+types/root";
 
 import { getMutations } from "~/api";
+import { Counter } from "~/counter";
 
 export function loader() {
 	return { mutations: getMutations() };
@@ -39,7 +40,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App({ loaderData }: Route.ComponentProps) {
 	return (
 		<>
-			Mutations {loaderData.mutations}
+			<Counter />
+			<p>Mutations {loaderData.mutations}</p>
 			<ul>
 				<li>
 					<Link to="/">Home</Link>
