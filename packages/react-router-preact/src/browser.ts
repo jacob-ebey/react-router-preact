@@ -1,7 +1,7 @@
 import { h, type VNode } from "preact";
 import { Suspense } from "preact/compat";
 import { hydrateRoot } from "preact/compat/client";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import {
 	decode,
 	type DecodeClientReferenceFunction,
@@ -9,7 +9,6 @@ import {
 } from "preact-server-components";
 
 import type { ServerPayload } from "./server.ts";
-import { useEffect } from "react";
 
 declare global {
 	interface Window {
