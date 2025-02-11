@@ -12,7 +12,13 @@
 		"declarationMap": true,
 		"baseUrl": ".",
 		"paths": {
+			"react-router-preact/browser": ["./src/browser.ts"],
 			"react-router-preact/client": ["./src/client.ts"],
+			"react-router-preact/ssr": ["./src/ssr.ts"],
+			"react-router-preact/server": ["./src/server.ts"],
+			"react-router-preact/vite.browser": ["./src/vite.browser.ts"],
+			"react-router-preact/vite.server": ["./src/vite.server.ts"],
+			"react-router-preact/vite.ssr": ["./src/vite.ssr.ts"],
 			"react": ["./node_modules/preact/compat/"],
 			"react/jsx-runtime": ["./node_modules/preact/jsx-runtime"],
 			"react-dom": ["./node_modules/preact/compat/"],

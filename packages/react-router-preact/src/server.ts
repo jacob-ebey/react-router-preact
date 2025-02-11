@@ -20,11 +20,8 @@ import {
 	WrappedRoute,
 } from "react-router-preact/client";
 
-import {
-	assets,
-	loadServerReference,
-	// @ts-expect-error
-} from "virtual:preact-server-components/server";
+// @ts-expect-error
+import { assets } from "virtual:preact-server-components/server";
 
 export type HandleRequestOptions = {
 	basename?: string;
